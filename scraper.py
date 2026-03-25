@@ -29,17 +29,21 @@ TARGET_COMPANIES = [
 COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
-    "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://recruit.skhynix.com/"],  # SK 그룹 통합 포털(skcareers.com) 대신 SK하이닉스 전용 사이트
-    "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
-    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
-    "Lam Research": ["https://lamresearch-recruit.com/jobs"],
-    "KLA": ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Micron": ["https://careers.micron.com"],
-    "TSMC": ["https://www.tsmc.com/static/english/careers/index.htm"],
-    "Intel": ["https://intel.wd1.myworkdayjobs.com/External"],
-    "NVIDIA": ["https://nvidia.eightfold.ai/careers"],
-    "AMD": ["https://careers.amd.com/careers-home/jobs"]
+    "삼성전자":          ["https://www.samsungcareers.com/hr/"],
+    "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
+    "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
+                          "https://www.asml.com/en/careers/find-your-job"],
+    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
+                          "https://jobs.appliedmaterials.com/"],
+    "Lam Research":      ["https://lamresearch-recruit.com/jobs",
+                          "https://careers.lamresearch.com/careers"],  # 글로벌 채용 사이트 추가
+    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
+    "Micron":            ["https://careers.micron.com/careers"],       # 루트 → 직무 목록 페이지로
+    "TSMC":              ["https://www.tsmc.com/english/careers/"],    # 구버전 static 페이지 → 현행 페이지로
+    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
+    "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
+    "AMD":               ["https://careers.amd.com/careers-home/jobs"],
+    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],  # OFFICIAL_URLS 누락 추가
 }
 
 def make_driver():
