@@ -19,8 +19,8 @@ from selenium.webdriver.common.by import By
 # ==========================================
 SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
-BATCH_SIZE = 10   # 한 번에 처리할 공고 수
-MAX_WORKERS = 3   # 병렬 AI 호출 수 (API 속도 제한 고려)
+BATCH_SIZE = None  # None = 전체 처리
+MAX_WORKERS = 3    # 병렬 AI 호출 수 (API 속도 제한 고려)
 
 client = anthropic.Anthropic(api_key=CLAUDE_API_KEY) if CLAUDE_API_KEY else None
 
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     if not pending_tasks:
         print("✨ 요약할 밀린 숙제가 없습니다! 모두 완벽하게 채워져 있습니다.")
     else:
-        tasks_to_process = pending_tasks[:BATCH_SIZE]
-        print(f"🚦 밀린 숙제 {len(pending_tasks)}개 중, {len(tasks_to_process)}개를 {MAX_WORKERS}개 병렬로 처리합니다.")
+        tasks_to_process = pending_tasks if BATCH_SIZE is None else pending_tasks[:BATCH_SIZE]
+        print(f"🚦 총 {len(pending_tasks)}개 처리 시작 ({MAX_WORKERS}개 병렬)...")
 
         results = {}
 
