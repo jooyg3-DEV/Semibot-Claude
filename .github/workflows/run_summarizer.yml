@@ -1,0 +1,23 @@
+name: 2. Job Summarizer (요약봇)
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # 매 2시간마다 실행
+  workflow_dispatch:
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: echo "$GCP_CREDENTIALS" > credentials.json
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python summarizer.py
