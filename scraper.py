@@ -31,6 +31,10 @@ TARGET_COMPANIES = [
 # 회사 우선순위 — config.py의 priority 그룹(1순위/2순위)을 사용
 COMPANY_RANK = {c["name"]: c["priority"] for c in config.COMPANIES}
 
+# 포털별 검색어 — config.py에서 관리
+COMPANY_SEARCH_KR = {c["name"]: c["search_kr"] for c in config.COMPANIES}
+COMPANY_SEARCH_EN = {c["name"]: c["search_en"] for c in config.COMPANIES}
+
 # 공식 홈페이지 검색 쿼리 — config.py에서 관리
 # 학력(석사/박사/신입/Master/PhD/Entry Level) + 직무 키워드 조합으로 3개씩 순회
 KOREAN_COMPANIES = config.KOREAN_COMPANY_NAMES
@@ -130,17 +134,28 @@ def load_page(driver, url):
         return False
 
 
+def _match_company(displayed_text, company_name):
+    """영문명 + 한국어 검색명 둘 다로 회사 매칭."""
+    kr_name = COMPANY_SEARCH_KR.get(company_name, company_name)
+    en_name = COMPANY_SEARCH_EN.get(company_name, company_name)
+    return (is_target_company(displayed_text, company_name) or
+            is_target_company(displayed_text, kr_name) or
+            is_target_company(displayed_text, en_name))
+
+
 def scrape_portal_info(company_name, driver, local_links):
     job_list = []
+    kr_query = COMPANY_SEARCH_KR.get(company_name, company_name)  # 한국 포털용
+    en_query = COMPANY_SEARCH_EN.get(company_name, company_name)  # 글로벌 포털용
 
-    # 사람인
-    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={company_name}+석박사"):
+    # 사람인 (한국어 검색)
+    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={kr_query}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
                 link = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
                 if link in local_links:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
+                if _match_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
                     if match_title(title) is None or is_china(title):
                         continue
@@ -149,15 +164,15 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # 잡코리아
-    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={company_name}+석박사"):
+    # 잡코리아 (한국어 검색)
+    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={kr_query}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
                 title_elem = job.find_element(By.CSS_SELECTOR, '.title')
                 link = title_elem.get_attribute('href')
                 if link in local_links:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
+                if _match_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
                     title = title_elem.text.strip()
                     if match_title(title) is None or is_china(title):
                         continue
@@ -166,15 +181,16 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # LinkedIn
-    if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={company_name}%20Master%20OR%20Ph.D"):
+    # LinkedIn (영문 검색, 글로벌)
+    li_kw = urllib.parse.quote(f"{en_query} Master OR Ph.D")
+    if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={li_kw}"):
         try:
             time.sleep(1)
             for job in driver.find_elements(By.CSS_SELECTOR, '.base-card')[:5]:
                 link = job.find_element(By.CSS_SELECTOR, 'a.base-card__full-link').get_attribute('href')
                 if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
+                if _match_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
                     try:
                         location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
@@ -187,8 +203,8 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # 잡다
-    if load_page(driver, f"https://www.jobda.im/position?keyword={company_name}"):
+    # 잡다 (한국어 검색)
+    if load_page(driver, f"https://www.jobda.im/position?keyword={kr_query}"):
         try:
             time.sleep(1)
             for item in driver.find_elements(By.CSS_SELECTOR, 'li')[:10]:
@@ -209,7 +225,7 @@ def scrape_portal_info(company_name, driver, local_links):
                         continue
                     if match_title(title) is None or is_china(title):
                         continue
-                    if is_target_company(item.text, company_name):
+                    if _match_company(item.text, company_name):
                         job_list.append(create_job_row("잡다", company_name, title, link))
                         local_links.add(link)
                 except Exception:
@@ -217,8 +233,8 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # Indeed (해외 직무)
-    indeed_q = urllib.parse.quote(f"{company_name} process engineer semiconductor phd")
+    # Indeed (영문 검색, 해외 직무)
+    indeed_q = urllib.parse.quote(f"{en_query} process engineer semiconductor phd")
     if load_page(driver, f"https://www.indeed.com/jobs?q={indeed_q}&sort=date"):
         try:
             time.sleep(2)
@@ -232,7 +248,7 @@ def scrape_portal_info(company_name, driver, local_links):
                     company_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="company-name"], .companyName')
                     if link in local_links or not title or len(title) < 5:
                         continue
-                    if not is_target_company(company_elem.text, company_name):
+                    if not _match_company(company_elem.text, company_name):
                         continue
                     if match_title(title) is None or is_china(title):
                         continue
