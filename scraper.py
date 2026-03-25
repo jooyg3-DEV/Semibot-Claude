@@ -11,7 +11,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-from utils import match_title
+from utils import match_title, is_china
 
 # ==========================================
 # ⚙️ [설정]
@@ -78,8 +78,6 @@ def is_target_company(actual, target):
 def create_job_row(source, company, title, link):
     today = datetime.today().strftime('%Y-%m-%d')
     rank = COMPANY_RANK.get(company, 99)
-    # A:검색일, B:순위, C:출처, D:마감일, E:상시, F:회사, G:공고명
-    # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:직무설명, M:박사우대, N:링크
     return [today, rank, source, today, "상시", company, title,
             "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
 
@@ -87,7 +85,7 @@ def create_job_row(source, company, title, link):
 def load_page(driver, url):
     try:
         driver.get(url)
-        time.sleep(1.5)  # 기존 2초 → 1.5초
+        time.sleep(1.5)
         return True
     except Exception:
         return False
@@ -105,7 +103,7 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
-                    if match_title(title) is None:
+                    if match_title(title) is None or is_china(title):
                         continue
                     job_list.append(create_job_row("사람인", company_name, title, link))
                     local_links.add(link)
@@ -122,7 +120,7 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
                     title = title_elem.text.strip()
-                    if match_title(title) is None:
+                    if match_title(title) is None or is_china(title):
                         continue
                     job_list.append(create_job_row("잊코리아", company_name, title, link))
                     local_links.add(link)
@@ -139,7 +137,11 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
-                    if match_title(title) is None:
+                    try:
+                        location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
+                    except Exception:
+                        location = ''
+                    if match_title(title) is None or is_china(title + ' ' + location):
                         continue
                     job_list.append(create_job_row("LinkedIn", company_name, title, link))
                     local_links.add(link)
@@ -166,7 +168,7 @@ def scrape_portal_info(company_name, driver, local_links):
                             continue
                     if not title or len(title) < 3 or link in local_links:
                         continue
-                    if match_title(title) is None:
+                    if match_title(title) is None or is_china(title):
                         continue
                     if is_target_company(item.text, company_name):
                         job_list.append(create_job_row("잊다", company_name, title, link))
@@ -196,7 +198,7 @@ def scrape_official_pages(company_name, driver, local_links):
                         continue
                     valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
                     if any(keyword in link.lower() for keyword in valid_keywords):
-                        if match_title(title) is None:
+                        if match_title(title) is None or is_china(title + ' ' + link):
                             continue
                         job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
                         local_links.add(link)
@@ -209,7 +211,7 @@ def scrape_official_pages(company_name, driver, local_links):
 def scrape_company(company, existing_links_snapshot):
     """단일 회사의 모든 소스를 독립 드라이버로 수집 (스레드 안전)"""
     driver = make_driver()
-    local_links = set(existing_links_snapshot)  # 스냅샷 복사본 사용
+    local_links = set(existing_links_snapshot)
     job_list = []
     try:
         print(f"  ▶ [{company}] 수집 시작...")
@@ -252,10 +254,10 @@ def sort_sheet(sheet):
 if __name__ == "__main__":
     print("📊 [수집봇] 구글 시트 연결 중...")
     sheet, existing_links = connect_google_sheet()
-    existing_links_snapshot = frozenset(existing_links)  # 불변 스냅샷 (스레드 공유)
+    existing_links_snapshot = frozenset(existing_links)
 
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잘 {len(TARGET_COMPANIES)}개 회사)...")
-    all_results = []  # (link, row) 쌍
+    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잡 {len(TARGET_COMPANIES)}개 회사)...")
+    all_results = []
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
 
@@ -268,7 +270,7 @@ if __name__ == "__main__":
             jobs = future.result()
             with dedup_lock:
                 for job in jobs:
-                    link = job[13]  # N열 링크
+                    link = job[13]
                     if link not in seen_links:
                         seen_links.add(link)
                         all_results.append(job)
