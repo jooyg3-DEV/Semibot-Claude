@@ -288,6 +288,59 @@ def scrape_portal_info(company_name, driver, local_links):
     return job_list
 
 
+# Google 검색에서 이미 수집 중인 사이트는 중복 제외
+_SKIP_DOMAINS = [
+    'saramin.co.kr', 'jobkorea.co.kr', 'jobda.im',
+    'indeed.com', 'linkedin.com', 'google.com',
+    'googleapis.com', 'gstatic.com',
+]
+
+
+def _is_skip_domain(url):
+    return any(d in url for d in _SKIP_DOMAINS)
+
+
+def scrape_google_jobs(company_name, driver, local_links):
+    """Google 검색으로 공채/구직 사이트 외 캐싱된 공고 수집."""
+    job_list = []
+    en_query = COMPANY_SEARCH_EN.get(company_name, company_name)
+
+    queries = [
+        f'"{en_query}" process engineer semiconductor jobs',
+        f'"{en_query}" engineer phd semiconductor "apply"',
+    ]
+
+    for q in queries:
+        gq = urllib.parse.quote(q)
+        if not load_page(driver, f"https://www.google.com/search?q={gq}&num=10"):
+            continue
+        time.sleep(1.5)
+        try:
+            for result in driver.find_elements(By.CSS_SELECTOR, 'div.g'):
+                try:
+                    a = result.find_element(By.CSS_SELECTOR, 'a')
+                    link = a.get_attribute('href') or ''
+                    if not link.startswith('http') or _is_skip_domain(link):
+                        continue
+                    link = link.split('?')[0]
+                    if link in local_links:
+                        continue
+                    title = result.find_element(By.CSS_SELECTOR, 'h3').text.strip()
+                    if not title or len(title) < 5:
+                        continue
+                    if match_title(title) is None or is_china(title + ' ' + link):
+                        continue
+                    job_list.append(create_job_row("Google", company_name, title, link))
+                    local_links.add(link)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+    print(f"      [Google] {company_name}: {len(job_list)}개")
+    return job_list
+
+
 def _collect_links_from_page(driver, company_name, local_links, job_list):
     """현재 드라이버 페이지에서 공고 링크를 모두 추출해 job_list에 추가."""
     valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
@@ -360,6 +413,7 @@ def scrape_company(company, existing_links_snapshot):
         print(f"  ▶ [{company}] 수집 시작...")
         job_list.extend(scrape_portal_info(company, driver, local_links))
         job_list.extend(scrape_official_pages(company, driver, local_links))
+        job_list.extend(scrape_google_jobs(company, driver, local_links))
         print(f"  ✓ [{company}] {len(job_list)}개 발견")
     except Exception as e:
         print(f"  ✗ [{company}] 오류: {e}")
