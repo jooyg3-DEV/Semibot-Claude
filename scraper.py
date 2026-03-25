@@ -10,6 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 from utils import match_title, is_china
 
@@ -27,6 +28,11 @@ TARGET_COMPANIES = [
 
 # 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
 COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
+
+# 공식 홈페이지 검색 키워드 (한국어 사이트 / 영문 사이트 구분)
+KOREAN_COMPANIES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
+SEARCH_TERM_KR = "반도체 공정 엔지니어"
+SEARCH_TERM_EN = "process engineer semiconductor"
 
 OFFICIAL_URLS = {
     "삼성전자":          ["https://www.samsungcareers.com/hr/"],
@@ -82,6 +88,34 @@ def create_job_row(source, company, title, link):
     # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:직무설명, M:박사우대, N:링크
     return [today, rank, source, today, "상시", company, title,
             "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
+
+
+def try_keyword_search(driver, keyword):
+    """페이지 내 검색창을 찾아 키워드 입력 후 결과 대기. 성공 여부 반환."""
+    selectors = [
+        'input[type="search"]',
+        'input[placeholder*="Search" i]',
+        'input[placeholder*="Job" i]',
+        'input[placeholder*="검색" i]',
+        'input[placeholder*="직무" i]',
+        'input[placeholder*="keyword" i]',
+        'input[name*="search" i]',
+        'input[id*="search" i]',
+        'input[class*="search" i]',
+    ]
+    for sel in selectors:
+        try:
+            box = driver.find_element(By.CSS_SELECTOR, sel)
+            if not box.is_displayed():
+                continue
+            box.clear()
+            box.send_keys(keyword)
+            box.send_keys(Keys.RETURN)
+            time.sleep(2)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def load_page(driver, url):
@@ -186,27 +220,36 @@ def scrape_portal_info(company_name, driver, local_links):
 def scrape_official_pages(company_name, driver, local_links):
     job_list = []
     urls = OFFICIAL_URLS.get(company_name, [])
+    keyword = SEARCH_TERM_KR if company_name in KOREAN_COMPANIES else SEARCH_TERM_EN
+
     for url in urls:
-        if load_page(driver, url):
-            time.sleep(1.5)
-            found_count = 0
-            for elem in driver.find_elements(By.TAG_NAME, 'a'):
-                if found_count >= 3:
-                    break
-                try:
-                    link = elem.get_attribute('href')
-                    title = elem.text.strip()
-                    if not link or len(title) < 5 or link in local_links:
-                        continue
-                    valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-                    if any(keyword in link.lower() for keyword in valid_keywords):
-                        if match_title(title) is None or is_china(title + ' ' + link):
-                            continue
-                        job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                        local_links.add(link)
-                        found_count += 1
-                except Exception:
+        if not load_page(driver, url):
+            continue
+        time.sleep(1.5)
+
+        # 검색창에 키워드 입력 시도 (실패해도 현재 페이지에서 계속 진행)
+        searched = try_keyword_search(driver, keyword)
+        if searched:
+            print(f"      [검색] {company_name} 공식 페이지에서 '{keyword}' 검색 완료")
+
+        found_count = 0
+        for elem in driver.find_elements(By.TAG_NAME, 'a'):
+            if found_count >= 5:
+                break
+            try:
+                link = elem.get_attribute('href')
+                title = elem.text.strip()
+                if not link or len(title) < 5 or link in local_links:
                     continue
+                valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
+                if any(kw in link.lower() for kw in valid_keywords):
+                    if match_title(title) is None or is_china(title + ' ' + link):
+                        continue
+                    job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
+                    local_links.add(link)
+                    found_count += 1
+            except Exception:
+                continue
     return job_list
 
 
