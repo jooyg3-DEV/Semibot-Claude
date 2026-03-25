@@ -18,6 +18,6 @@ jobs:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: echo "$GCP_CREDENTIALS" > credentials.json
       - env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           SHEET_URL: ${{ secrets.SHEET_URL }}
         run: python summarizer.py
