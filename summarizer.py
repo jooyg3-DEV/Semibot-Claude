@@ -19,7 +19,6 @@ SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 BATCH_SIZE = None  # None = 전체 처리
 MAX_WORKERS = 1    # 순차 처리 (무료 플랜 15 RPM 한도)
-API_CALL_DELAY = 4  # API 호출 간 딜레이(초) - 15 RPM = 4초/요청
 
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
@@ -67,7 +66,6 @@ def get_ai_extracted_data(text_content):
 
 공고 내용: {text_content[:3000]}
 """
-    time.sleep(API_CALL_DELAY)  # 호출 전 딜레이로 RPM 제한 준수
     max_retries = 3
     for attempt in range(max_retries):
         try:
