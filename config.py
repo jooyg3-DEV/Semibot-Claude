@@ -73,9 +73,9 @@ WEAK_EN = ["engineer", "r&d", "research", "scientist", "technology", "material",
            "analysis", "yield", "integration", "device", "semiconductor",
            "master", "master's", "masters", "fresh graduate", "entry level", "new graduate"]
 
-EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발", "설치", "인턴", "인공지능", " it "]
+EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발", "설치", "인턴", "인공지능", " it ", "알고리즘"]
 EXCLUDE_EN = ["sales", "marketing", " hr ", "finance", "legal", "software", "procurement",
-              "logistics", "supply chain", "accounting", "install", "intern", "ai ", " it "]
+              "logistics", "supply chain", "accounting", "install", "intern", "ai ", " it ", "algorithm"]
 
 # ── 중국 지역 제외 키워드 ────────────────────────────────────
 CHINA_KEYWORDS = [
