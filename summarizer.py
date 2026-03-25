@@ -10,8 +10,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import anthropic
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 
 # ==========================================
@@ -24,18 +22,6 @@ MAX_WORKERS = 3    # 병렬 AI 호출 수 (API 속도 제한 고려)
 
 client = anthropic.Anthropic(api_key=CLAUDE_API_KEY) if CLAUDE_API_KEY else None
 
-_driver_path = None
-_driver_path_lock = threading.Lock()
-
-
-def get_driver_path():
-    global _driver_path
-    with _driver_path_lock:
-        if _driver_path is None:
-            _driver_path = ChromeDriverManager().install()
-    return _driver_path
-
-
 def make_driver():
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
@@ -44,7 +30,7 @@ def make_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--blink-settings=imagesEnabled=false')
     options.add_argument('--disable-extensions')
-    driver = webdriver.Chrome(service=Service(get_driver_path()), options=options)
+    driver = webdriver.Chrome(options=options)
     driver.set_page_load_timeout(15)
     return driver
 
@@ -129,9 +115,6 @@ def process_single_job(task):
 if __name__ == "__main__":
     print("📊 [요약봇] 구글 시트 연결 중...")
     sheet = connect_google_sheet()
-
-    print("🔧 ChromeDriver 준비 중...")
-    get_driver_path()
 
     print("\n🤖 [요약봇] 시트의 빈칸(AI 대기)을 채우러 갑니다...")
     all_rows = sheet.get_all_values()

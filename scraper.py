@@ -9,8 +9,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 
 # ==========================================
@@ -43,19 +41,6 @@ OFFICIAL_URLS = {
     "AMD": ["https://careers.amd.com/careers-home/jobs"]
 }
 
-# ChromeDriver 경로를 한 번만 설치하고 공유 (스레드 간 재다운로드 방지)
-_driver_path = None
-_driver_path_lock = threading.Lock()
-
-
-def get_driver_path():
-    global _driver_path
-    with _driver_path_lock:
-        if _driver_path is None:
-            _driver_path = ChromeDriverManager().install()
-    return _driver_path
-
-
 def make_driver():
     """각 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
     options = webdriver.ChromeOptions()
@@ -63,9 +48,9 @@ def make_driver():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('--blink-settings=imagesEnabled=false')  # 이미지 로딩 차단
+    options.add_argument('--blink-settings=imagesEnabled=false')
     options.add_argument('--disable-extensions')
-    driver = webdriver.Chrome(service=Service(get_driver_path()), options=options)
+    driver = webdriver.Chrome(options=options)
     driver.set_page_load_timeout(15)
     return driver
 
@@ -224,10 +209,6 @@ if __name__ == "__main__":
     print("📊 [수집봇] 구글 시트 연결 중...")
     sheet, existing_links = connect_google_sheet()
     existing_links_snapshot = frozenset(existing_links)  # 불변 스냅샷 (스레드 공유)
-
-    # ChromeDriver 사전 설치 (스레드 간 충돌 방지)
-    print("🔧 ChromeDriver 준비 중...")
-    get_driver_path()
 
     print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (총 {len(TARGET_COMPANIES)}개 회사)...")
     all_results = []  # (link, row) 쌍
