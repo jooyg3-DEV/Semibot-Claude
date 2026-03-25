@@ -2,6 +2,7 @@ import os
 import re
 import time
 import threading
+import urllib.parse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -13,6 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 from utils import match_title, is_china
+import config
 
 # ==========================================
 # ⚙️ [설정]
@@ -26,33 +28,35 @@ TARGET_COMPANIES = [
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
 
-# 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
-COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
+# 회사 우선순위 — config.py의 priority 그룹(1순위/2순위)을 사용
+COMPANY_RANK = {c["name"]: c["priority"] for c in config.COMPANIES}
 
-# 공식 홈페이지 검색 키워드 (한국어 사이트 / 영문 사이트 구분)
-KOREAN_COMPANIES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
-SEARCH_TERM_KR = "반도체 공정 엔지니어"
-SEARCH_TERM_EN = "process engineer semiconductor"
+# 공식 홈페이지 검색 쿼리 — config.py에서 관리
+# 학력(석사/박사/신입/Master/PhD/Entry Level) + 직무 키워드 조합으로 3개씩 순회
+KOREAN_COMPANIES = config.KOREAN_COMPANY_NAMES
+SEARCH_QUERIES_KR = config.SEARCH_QUERIES_KR
+SEARCH_QUERIES_EN = config.SEARCH_QUERIES_EN
 
 OFFICIAL_URLS = {
     "삼성전자":          ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스":        ["https://recruit.skhynix.com/"],
+    "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
     "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
                           "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
                           "https://jobs.appliedmaterials.com/"],
     "Lam Research":      ["https://lamresearch-recruit.com/jobs",
-                          "https://careers.lamresearch.com/careers"],
+                          "https://careers.lamresearch.com/careers"],  # 글로벌 채용 사이트 추가
     "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Micron":            ["https://careers.micron.com/careers"],
-    "TSMC":              ["https://www.tsmc.com/english/careers/"],
+    "Micron":            ["https://careers.micron.com/careers"],       # 루트 → 직무 목록 페이지로
+    "TSMC":              ["https://www.tsmc.com/english/careers/"],    # 구버전 static 페이지 → 현행 페이지로
     "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
     "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
     "AMD":               ["https://careers.amd.com/careers-home/jobs"],
-    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],
+    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],  # OFFICIAL_URLS 누락 추가
 }
 
 def make_driver():
+    """각 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -70,7 +74,7 @@ def connect_google_sheet():
     creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용공고")
     try:
-        existing_links = set(sheet.col_values(14))
+        existing_links = set(sheet.col_values(14))  # N열(14)이 링크
     except Exception:
         existing_links = set()
     return sheet, existing_links
@@ -83,6 +87,8 @@ def is_target_company(actual, target):
 def create_job_row(source, company, title, link):
     today = datetime.today().strftime('%Y-%m-%d')
     rank = COMPANY_RANK.get(company, 99)
+    # A:검색일, B:순위, C:출처, D:마감일, E:상시, F:회사, G:공고명
+    # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:직무설명, M:박사우대, N:링크
     return [today, rank, source, today, "상시", company, title,
             "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
 
@@ -118,7 +124,7 @@ def try_keyword_search(driver, keyword):
 def load_page(driver, url):
     try:
         driver.get(url)
-        time.sleep(1.5)
+        time.sleep(1.5)  # 기존 2초 → 1.5초
         return True
     except Exception:
         return False
@@ -143,7 +149,7 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # 잊코리아
+    # 잡코리아
     if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={company_name}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
@@ -155,7 +161,7 @@ def scrape_portal_info(company_name, driver, local_links):
                     title = title_elem.text.strip()
                     if match_title(title) is None or is_china(title):
                         continue
-                    job_list.append(create_job_row("잊코리아", company_name, title, link))
+                    job_list.append(create_job_row("잡코리아", company_name, title, link))
                     local_links.add(link)
         except Exception:
             pass
@@ -181,7 +187,7 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
-    # 잊다
+    # 잡다
     if load_page(driver, f"https://www.jobda.im/position?keyword={company_name}"):
         try:
             time.sleep(1)
@@ -204,8 +210,34 @@ def scrape_portal_info(company_name, driver, local_links):
                     if match_title(title) is None or is_china(title):
                         continue
                     if is_target_company(item.text, company_name):
-                        job_list.append(create_job_row("잊다", company_name, title, link))
+                        job_list.append(create_job_row("잡다", company_name, title, link))
                         local_links.add(link)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    # Indeed (해외 직무)
+    indeed_q = urllib.parse.quote(f"{company_name} process engineer semiconductor phd")
+    if load_page(driver, f"https://www.indeed.com/jobs?q={indeed_q}&sort=date"):
+        try:
+            time.sleep(2)
+            for job in driver.find_elements(By.CSS_SELECTOR, '.job_seen_beacon')[:5]:
+                try:
+                    title_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="jobTitle"] a, h2.jobTitle a')
+                    link = title_elem.get_attribute('href') or ''
+                    if not link.startswith('http'):
+                        link = 'https://www.indeed.com' + link
+                    title = title_elem.text.strip()
+                    company_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="company-name"], .companyName')
+                    if link in local_links or not title or len(title) < 5:
+                        continue
+                    if not is_target_company(company_elem.text, company_name):
+                        continue
+                    if match_title(title) is None or is_china(title):
+                        continue
+                    job_list.append(create_job_row("Indeed", company_name, title, link))
+                    local_links.add(link)
                 except Exception:
                     continue
         except Exception:
@@ -214,45 +246,73 @@ def scrape_portal_info(company_name, driver, local_links):
     return job_list
 
 
+def _collect_links_from_page(driver, company_name, local_links, job_list):
+    """현재 드라이버 페이지에서 공고 링크를 모두 추출해 job_list에 추가."""
+    valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
+    for elem in driver.find_elements(By.TAG_NAME, 'a'):
+        try:
+            link = elem.get_attribute('href')
+            title = elem.text.strip()
+            if not link or len(title) < 5 or link in local_links:
+                continue
+            if any(kw in link.lower() for kw in valid_url_kw):
+                if match_title(title) is None or is_china(title + ' ' + link):
+                    continue
+                job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
+                local_links.add(link)
+        except Exception:
+            continue
+
+
+def _scroll_to_load(driver):
+    """SPA/lazy-load 페이지에서 스크롤로 콘텐츠 렌더링 트리거."""
+    try:
+        for _ in range(4):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(0.8)
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(0.5)
+    except Exception:
+        pass
+
+
 def scrape_official_pages(company_name, driver, local_links):
     job_list = []
     urls = OFFICIAL_URLS.get(company_name, [])
-    keyword = SEARCH_TERM_KR if company_name in KOREAN_COMPANIES else SEARCH_TERM_EN
+    queries = SEARCH_QUERIES_KR if company_name in KOREAN_COMPANIES else SEARCH_QUERIES_EN
 
     for url in urls:
         if not load_page(driver, url):
             continue
-        time.sleep(1.5)
+        time.sleep(3)  # SPA 초기 렌더링 대기 (1.5 → 3초)
+        _scroll_to_load(driver)  # lazy load 트리거
 
-        # 검색창에 키워드 입력 시도 (실패해도 현재 페이지에서 계속 진행)
-        searched = try_keyword_search(driver, keyword)
+        # 검색창 유무 확인 (첫 번째 쿼리로 테스트)
+        first_query = queries[0]
+        searched = try_keyword_search(driver, first_query)
+
         if searched:
-            print(f"      [검색] {company_name} 공식 페이지에서 '{keyword}' 검색 완료")
+            print(f"      [검색] {company_name}: '{first_query}' 검색 성공")
+            _scroll_to_load(driver)
+            _collect_links_from_page(driver, company_name, local_links, job_list)
 
-        found_count = 0
-        for elem in driver.find_elements(By.TAG_NAME, 'a'):
-            if found_count >= 5:
-                break
-            try:
-                link = elem.get_attribute('href')
-                title = elem.text.strip()
-                if not link or len(title) < 5 or link in local_links:
-                    continue
-                valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-                if any(kw in link.lower() for kw in valid_keywords):
-                    if match_title(title) is None or is_china(title + ' ' + link):
-                        continue
-                    job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                    local_links.add(link)
-                    found_count += 1
-            except Exception:
-                continue
+            # 나머지 쿼리도 순차 검색 (검색창이 있을 때만)
+            for query in queries[1:]:
+                if load_page(driver, url) and try_keyword_search(driver, query):
+                    print(f"      [검색] {company_name}: '{query}' 검색")
+                    _scroll_to_load(driver)
+                    _collect_links_from_page(driver, company_name, local_links, job_list)
+        else:
+            # 검색창 없음 → 페이지 전체 링크에서 수집 (fallback)
+            _collect_links_from_page(driver, company_name, local_links, job_list)
+
     return job_list
 
 
 def scrape_company(company, existing_links_snapshot):
+    """단일 회사의 모든 소스를 독립 드라이버로 수집 (스레드 안전)"""
     driver = make_driver()
-    local_links = set(existing_links_snapshot)
+    local_links = set(existing_links_snapshot)  # 스냅샷 복사본 사용
     job_list = []
     try:
         print(f"  ▶ [{company}] 수집 시작...")
@@ -267,6 +327,7 @@ def scrape_company(company, existing_links_snapshot):
 
 
 def sort_sheet(sheet):
+    """날짜 → 순위 → 출처 순으로 시트 정렬"""
     all_rows = sheet.get_all_values()
     if len(all_rows) <= 1:
         return
@@ -294,12 +355,13 @@ def sort_sheet(sheet):
 if __name__ == "__main__":
     print("📊 [수집봇] 구글 시트 연결 중...")
     sheet, existing_links = connect_google_sheet()
-    existing_links_snapshot = frozenset(existing_links)
+    existing_links_snapshot = frozenset(existing_links)  # 불변 스냅샷 (스레드 공유)
 
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잘 {len(TARGET_COMPANIES)}개 회사)...")
-    all_results = []
+    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (총 {len(TARGET_COMPANIES)}개 회사)...")
+    all_results = []  # (link, row) 쌍
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
+    company_status = {}  # 기업별 수집 결과 추적
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
@@ -307,20 +369,40 @@ if __name__ == "__main__":
             for company in TARGET_COMPANIES
         }
         for future in as_completed(futures):
-            jobs = future.result()
-            with dedup_lock:
-                for job in jobs:
-                    link = job[13]
-                    if link not in seen_links:
-                        seen_links.add(link)
-                        all_results.append(job)
+            company = futures[future]
+            try:
+                jobs = future.result()
+                new_count = 0
+                with dedup_lock:
+                    for job in jobs:
+                        link = job[13]  # N열 링크
+                        if link not in seen_links:
+                            seen_links.add(link)
+                            all_results.append(job)
+                            new_count += 1
+                company_status[company] = {"found": new_count, "error": None}
+            except Exception as e:
+                company_status[company] = {"found": 0, "error": str(e)}
 
     if all_results:
         print(f"\n📝 새로운 공고 {len(all_results)}개를 시트에 일괄 등록합니다.")
+        # append_rows()로 한 번에 쓰기 (기존 N회 × sleep(1) 제거)
         sheet.append_rows(all_results, value_input_option='USER_ENTERED')
         print("\n🔃 시트 정렬 중...")
         sort_sheet(sheet)
     else:
         print("\n✨ 새로 올라온 공고가 없습니다.")
 
+    print("\n📋 [수집봇] 기업별 수집 결과:")
+    checked = 0
+    for company in TARGET_COMPANIES:
+        status = company_status.get(company)
+        if status is None:
+            print(f"  ⚠️  {company}: 미실행")
+        elif status["error"]:
+            print(f"  ✗ {company}: 오류 - {status['error']}")
+        else:
+            print(f"  ✓ {company}: 신규 {status['found']}개")
+            checked += 1
+    print(f"\n  → 전체 {len(TARGET_COMPANIES)}개 중 {checked}개 정상 완료")
     print("\n🛑 [수집봇] 안전하게 종료되었습니다.")
