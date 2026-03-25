@@ -219,13 +219,10 @@ def scrape_portal_info(company_name, driver, local_links):
     return job_list
 
 
-def _collect_links_from_page(driver, company_name, local_links, job_list, max_per_query=5):
-    """현재 드라이버 페이지에서 공고 링크를 추출해 job_list에 추가."""
+def _collect_links_from_page(driver, company_name, local_links, job_list):
+    """현재 드라이버 페이지에서 공고 링크를 모두 추출해 job_list에 추가."""
     valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-    found = 0
     for elem in driver.find_elements(By.TAG_NAME, 'a'):
-        if found >= max_per_query:
-            break
         try:
             link = elem.get_attribute('href')
             title = elem.text.strip()
@@ -236,7 +233,6 @@ def _collect_links_from_page(driver, company_name, local_links, job_list, max_pe
                     continue
                 job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
                 local_links.add(link)
-                found += 1
         except Exception:
             continue
 
