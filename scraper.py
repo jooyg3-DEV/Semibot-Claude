@@ -23,18 +23,22 @@ TARGET_COMPANIES = [
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
 
-# 회사 순위 (TARGET_COMPANIES 순서 기반)
-COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
+# 회사 우선순위 (1순위 = 핵심, 2순위 = 주요)
+COMPANY_RANK = {
+    "삼성전자": 1, "SK하이닉스": 1, "ASML": 1,
+    "Applied Materials": 1, "KLA": 1,
+    "Lam Research": 2, "Tokyo Electron": 2, "Micron": 2,
+    "Intel": 2, "TSMC": 2, "NVIDIA": 2, "AMD": 2,
+}
 
 OFFICIAL_URLS = {
     "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://www.skcareers.com/Recruit/Index?searchText="],
+    "SK하이닉스": ["https://www.skcareers.com/Recruit"],
     "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
-    "Lam Research": ["https://lamresearch-recruit.com/jobs", "https://careers.lamresearch.com/careers"],
+    "Lam Research": ["https://lamresearch-recruit.com/jobs"],
     "KLA": ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Tokyo Electron": ["https://tel.recruiter.co.kr/career/career"],
-    "Micron": ["https://careers.micron.com/careers"],
+    "Micron": ["https://careers.micron.com"],
     "TSMC": ["https://www.tsmc.com/static/english/careers/index.htm"],
     "Intel": ["https://intel.wd1.myworkdayjobs.com/External"],
     "NVIDIA": ["https://nvidia.eightfold.ai/careers"],
@@ -131,6 +135,34 @@ def scrape_portal_info(company_name, driver, local_links):
                     title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
                     job_list.append(create_job_row("LinkedIn", company_name, title, link))
                     local_links.add(link)
+        except Exception:
+            pass
+
+    # 잡다
+    if load_page(driver, f"https://www.jobda.im/position?keyword={company_name}"):
+        try:
+            time.sleep(1)
+            for item in driver.find_elements(By.CSS_SELECTOR, 'li')[:10]:
+                try:
+                    a = item.find_element(By.CSS_SELECTOR, 'a')
+                    link = a.get_attribute('href') or ''
+                    if not link.startswith('http'):
+                        link = 'https://www.jobda.im' + link
+                    title = ''
+                    for sel in ['.position-name', '.title', 'h3', 'h4', 'strong']:
+                        try:
+                            title = item.find_element(By.CSS_SELECTOR, sel).text.strip()
+                            if title:
+                                break
+                        except Exception:
+                            continue
+                    if not title or len(title) < 3 or link in local_links:
+                        continue
+                    if is_target_company(item.text, company_name):
+                        job_list.append(create_job_row("잡다", company_name, title, link))
+                        local_links.add(link)
+                except Exception:
+                    continue
         except Exception:
             pass
 
