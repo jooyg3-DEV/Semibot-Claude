@@ -8,15 +8,13 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
 SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
-MAX_WORKERS = 4  # 병렬로 처리할 회사 수
+MAX_WORKERS = 4
 
 TARGET_COMPANIES = [
     "삼성전자", "SK하이닉스", "ASML", "Applied Materials",
@@ -39,17 +37,6 @@ OFFICIAL_URLS = {
     "AMD": ["https://careers.amd.com/careers-home/jobs"]
 }
 
-_driver_path = None
-_driver_path_lock = threading.Lock()
-
-
-def get_driver_path():
-    global _driver_path
-    with _driver_path_lock:
-        if _driver_path is None:
-            _driver_path = ChromeDriverManager().install()
-    return _driver_path
-
 
 def make_driver():
     options = webdriver.ChromeOptions()
@@ -59,7 +46,7 @@ def make_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--blink-settings=imagesEnabled=false')
     options.add_argument('--disable-extensions')
-    driver = webdriver.Chrome(service=Service(get_driver_path()), options=options)
+    driver = webdriver.Chrome(options=options)
     driver.set_page_load_timeout(15)
     return driver
 
@@ -185,10 +172,7 @@ if __name__ == "__main__":
     sheet, existing_links = connect_google_sheet()
     existing_links_snapshot = frozenset(existing_links)
 
-    print("🔧 ChromeDriver 준비 중...")
-    get_driver_path()
-
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (직 {len(TARGET_COMPANIES)}개 회사)...")
+    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (전체 {len(TARGET_COMPANIES)}개 회사)...")
     all_results = []
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
