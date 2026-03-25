@@ -68,7 +68,14 @@ def make_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--blink-settings=imagesEnabled=false')
     options.add_argument('--disable-extensions')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+    options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    options.add_experimental_option('useAutomationExtension', False)
     driver = webdriver.Chrome(options=options)
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+    })
     driver.set_page_load_timeout(15)
     return driver
 
@@ -185,21 +192,36 @@ def scrape_portal_info(company_name, driver, local_links):
     li_kw = urllib.parse.quote(f"{en_query} Master OR Ph.D")
     if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={li_kw}"):
         try:
-            time.sleep(1)
-            for job in driver.find_elements(By.CSS_SELECTOR, '.base-card')[:5]:
-                link = job.find_element(By.CSS_SELECTOR, 'a.base-card__full-link').get_attribute('href')
-                if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
-                    continue
-                if _match_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
-                    title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
+            cur = driver.current_url
+            if "login" in cur or "authwall" in cur or "signup" in cur:
+                print(f"      [LinkedIn] {company_name}: 로그인 차단 감지 - 건너뜀")
+            else:
+                time.sleep(2)
+                found = 0
+                for job in driver.find_elements(By.CSS_SELECTOR, '.base-card, .job-search-card')[:5]:
                     try:
-                        location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
+                        link_elem = job.find_element(By.CSS_SELECTOR, 'a[href*="linkedin.com/jobs"]')
+                        link = link_elem.get_attribute('href') or ''
+                        if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
+                            continue
+                        title_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__title, .job-search-card__title')
+                        title = title_elem.text.strip()
+                        company_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle, .job-search-card__company-name')
+                        if not _match_company(company_elem.text, company_name):
+                            continue
+                        try:
+                            location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
+                        except Exception:
+                            location = ''
+                        if match_title(title) is None or is_china(title + ' ' + location):
+                            continue
+                        job_list.append(create_job_row("LinkedIn", company_name, title, link))
+                        local_links.add(link)
+                        found += 1
                     except Exception:
-                        location = ''
-                    if match_title(title) is None or is_china(title + ' ' + location):
                         continue
-                    job_list.append(create_job_row("LinkedIn", company_name, title, link))
-                    local_links.add(link)
+                if found == 0:
+                    print(f"      [LinkedIn] {company_name}: 결과 없음 (차단 가능성)")
         except Exception:
             pass
 
