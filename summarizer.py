@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-import anthropic
+import google.generativeai as genai
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,11 +16,15 @@ from selenium.webdriver.common.by import By
 # ⚙️ [설정]
 # ==========================================
 SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
-CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 BATCH_SIZE = None  # None = 전체 처리
 MAX_WORKERS = 3    # 병렬 AI 호출 수 (API 속도 제한 고려)
 
-client = anthropic.Anthropic(api_key=CLAUDE_API_KEY) if CLAUDE_API_KEY else None
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.GenerativeModel("gemini-2.0-flash")
+else:
+    client = None
 
 def make_driver():
     options = webdriver.ChromeOptions()
@@ -66,24 +70,21 @@ def get_ai_extracted_data(text_content):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            raw_text = response.content[0].text.strip()
+            response = client.generate_content(prompt)
+            raw_text = response.text.strip()
             if raw_text.startswith("```"):
                 raw_text = raw_text.split("\n", 1)[1]
                 if raw_text.endswith("```"):
                     raw_text = raw_text.rsplit("\n", 1)[0]
             return json.loads(raw_text.strip())
-        except anthropic.RateLimitError:
-            wait = 60 * (attempt + 1)
-            print(f"      [API 속도 제한] {wait}초 대기 중... ({attempt+1}/{max_retries})")
-            time.sleep(wait)
         except Exception as e:
-            print(f"      [오류] {e}")
-            return None
+            if "429" in str(e) or "quota" in str(e).lower():
+                wait = 60 * (attempt + 1)
+                print(f"      [API 속도 제한] {wait}초 대기 중... ({attempt+1}/{max_retries})")
+                time.sleep(wait)
+            else:
+                print(f"      [오류] {e}")
+                return None
     return None
 
 

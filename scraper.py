@@ -23,13 +23,8 @@ TARGET_COMPANIES = [
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
 
-# 회사 우선순위 (1순위 = 핵심, 2순위 = 주요)
-COMPANY_RANK = {
-    "삼성전자": 1, "SK하이닉스": 1, "ASML": 1,
-    "Applied Materials": 1, "KLA": 1,
-    "Lam Research": 2, "Tokyo Electron": 2, "Micron": 2,
-    "Intel": 2, "TSMC": 2, "NVIDIA": 2, "AMD": 2,
-}
+# 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
+COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
     "삼성전자": ["https://www.samsungcareers.com/hr/"],
