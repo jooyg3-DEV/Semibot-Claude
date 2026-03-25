@@ -10,6 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 from utils import match_title, is_china
 
@@ -28,26 +29,30 @@ TARGET_COMPANIES = [
 # 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
 COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
+# 공식 홈페이지 검색 키워드 (한국어 사이트 / 영문 사이트 구분)
+KOREAN_COMPANIES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
+SEARCH_TERM_KR = "반도체 공정 엔지니어"
+SEARCH_TERM_EN = "process engineer semiconductor"
+
 OFFICIAL_URLS = {
     "삼성전자":          ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
+    "SK하이닉스":        ["https://recruit.skhynix.com/"],
     "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
                           "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
                           "https://jobs.appliedmaterials.com/"],
     "Lam Research":      ["https://lamresearch-recruit.com/jobs",
-                          "https://careers.lamresearch.com/careers"],  # 글로벌 채용 사이트 추가
+                          "https://careers.lamresearch.com/careers"],
     "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Micron":            ["https://careers.micron.com/careers"],       # 루트 → 직무 목록 페이지로
-    "TSMC":              ["https://www.tsmc.com/english/careers/"],    # 구버전 static 페이지 → 현행 페이지로
+    "Micron":            ["https://careers.micron.com/careers"],
+    "TSMC":              ["https://www.tsmc.com/english/careers/"],
     "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
     "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
     "AMD":               ["https://careers.amd.com/careers-home/jobs"],
-    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],  # OFFICIAL_URLS 누락 추가
+    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],
 }
 
 def make_driver():
-    """성제 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -65,7 +70,7 @@ def connect_google_sheet():
     creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용공고")
     try:
-        existing_links = set(sheet.col_values(14))  # N열(14)이 링크
+        existing_links = set(sheet.col_values(14))
     except Exception:
         existing_links = set()
     return sheet, existing_links
@@ -80,6 +85,34 @@ def create_job_row(source, company, title, link):
     rank = COMPANY_RANK.get(company, 99)
     return [today, rank, source, today, "상시", company, title,
             "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
+
+
+def try_keyword_search(driver, keyword):
+    """페이지 내 검색창을 찾아 키워드 입력 후 결과 대기. 성공 여부 반환."""
+    selectors = [
+        'input[type="search"]',
+        'input[placeholder*="Search" i]',
+        'input[placeholder*="Job" i]',
+        'input[placeholder*="검색" i]',
+        'input[placeholder*="직무" i]',
+        'input[placeholder*="keyword" i]',
+        'input[name*="search" i]',
+        'input[id*="search" i]',
+        'input[class*="search" i]',
+    ]
+    for sel in selectors:
+        try:
+            box = driver.find_element(By.CSS_SELECTOR, sel)
+            if not box.is_displayed():
+                continue
+            box.clear()
+            box.send_keys(keyword)
+            box.send_keys(Keys.RETURN)
+            time.sleep(2)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def load_page(driver, url):
@@ -184,32 +217,40 @@ def scrape_portal_info(company_name, driver, local_links):
 def scrape_official_pages(company_name, driver, local_links):
     job_list = []
     urls = OFFICIAL_URLS.get(company_name, [])
+    keyword = SEARCH_TERM_KR if company_name in KOREAN_COMPANIES else SEARCH_TERM_EN
+
     for url in urls:
-        if load_page(driver, url):
-            time.sleep(1.5)
-            found_count = 0
-            for elem in driver.find_elements(By.TAG_NAME, 'a'):
-                if found_count >= 3:
-                    break
-                try:
-                    link = elem.get_attribute('href')
-                    title = elem.text.strip()
-                    if not link or len(title) < 5 or link in local_links:
-                        continue
-                    valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-                    if any(keyword in link.lower() for keyword in valid_keywords):
-                        if match_title(title) is None or is_china(title + ' ' + link):
-                            continue
-                        job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                        local_links.add(link)
-                        found_count += 1
-                except Exception:
+        if not load_page(driver, url):
+            continue
+        time.sleep(1.5)
+
+        # 검색창에 키워드 입력 시도 (실패해도 현재 페이지에서 계속 진행)
+        searched = try_keyword_search(driver, keyword)
+        if searched:
+            print(f"      [검색] {company_name} 공식 페이지에서 '{keyword}' 검색 완료")
+
+        found_count = 0
+        for elem in driver.find_elements(By.TAG_NAME, 'a'):
+            if found_count >= 5:
+                break
+            try:
+                link = elem.get_attribute('href')
+                title = elem.text.strip()
+                if not link or len(title) < 5 or link in local_links:
                     continue
+                valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
+                if any(kw in link.lower() for kw in valid_keywords):
+                    if match_title(title) is None or is_china(title + ' ' + link):
+                        continue
+                    job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
+                    local_links.add(link)
+                    found_count += 1
+            except Exception:
+                continue
     return job_list
 
 
 def scrape_company(company, existing_links_snapshot):
-    """단일 회사의 모든 소스를 독립 드라이버로 수집 (스레드 안전)"""
     driver = make_driver()
     local_links = set(existing_links_snapshot)
     job_list = []
@@ -226,7 +267,6 @@ def scrape_company(company, existing_links_snapshot):
 
 
 def sort_sheet(sheet):
-    """날짜 → 순위 → 출처 순으로 시트 정렬"""
     all_rows = sheet.get_all_values()
     if len(all_rows) <= 1:
         return
@@ -256,7 +296,7 @@ if __name__ == "__main__":
     sheet, existing_links = connect_google_sheet()
     existing_links_snapshot = frozenset(existing_links)
 
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잡 {len(TARGET_COMPANIES)}개 회사)...")
+    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잘 {len(TARGET_COMPANIES)}개 회사)...")
     all_results = []
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
