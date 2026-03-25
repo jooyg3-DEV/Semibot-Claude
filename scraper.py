@@ -11,6 +11,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+from utils import match_title
+
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
@@ -28,7 +30,7 @@ COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
     "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://www.skcareers.com/Recruit"],
+    "SK하이닉스": ["https://recruit.skhynix.com/"],  # SK 그룹 통합 포털(skcareers.com) 대신 SK하이닉스 전용 사이트
     "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
     "Lam Research": ["https://lamresearch-recruit.com/jobs"],
@@ -99,6 +101,8 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
+                    if match_title(title) is None:
+                        continue
                     job_list.append(create_job_row("사람인", company_name, title, link))
                     local_links.add(link)
         except Exception:
@@ -113,7 +117,10 @@ def scrape_portal_info(company_name, driver, local_links):
                 if link in local_links:
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
-                    job_list.append(create_job_row("잡코리아", company_name, title_elem.text.strip(), link))
+                    title = title_elem.text.strip()
+                    if match_title(title) is None:
+                        continue
+                    job_list.append(create_job_row("잡코리아", company_name, title, link))
                     local_links.add(link)
         except Exception:
             pass
@@ -128,6 +135,8 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
+                    if match_title(title) is None:
+                        continue
                     job_list.append(create_job_row("LinkedIn", company_name, title, link))
                     local_links.add(link)
         except Exception:
@@ -152,6 +161,8 @@ def scrape_portal_info(company_name, driver, local_links):
                         except Exception:
                             continue
                     if not title or len(title) < 3 or link in local_links:
+                        continue
+                    if match_title(title) is None:
                         continue
                     if is_target_company(item.text, company_name):
                         job_list.append(create_job_row("잡다", company_name, title, link))
@@ -181,6 +192,8 @@ def scrape_official_pages(company_name, driver, local_links):
                         continue
                     valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
                     if any(keyword in link.lower() for keyword in valid_keywords):
+                        if match_title(title) is None:
+                            continue
                         job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
                         local_links.add(link)
                         found_count += 1
