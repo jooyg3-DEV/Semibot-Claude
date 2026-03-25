@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-import google.generativeai as genai
+from google import genai
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -18,11 +18,11 @@ from selenium.webdriver.common.by import By
 SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 BATCH_SIZE = None  # None = 전체 처리
-MAX_WORKERS = 3    # 병렬 AI 호출 수 (API 속도 제한 고려)
+MAX_WORKERS = 1    # 순차 처리 (무료 플랜 15 RPM 한도)
+API_CALL_DELAY = 4  # API 호출 간 딜레이(초) - 15 RPM = 4초/요청
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    client = genai.GenerativeModel("gemini-2.0-flash")
+    client = genai.Client(api_key=GEMINI_API_KEY)
 else:
     client = None
 
@@ -67,10 +67,14 @@ def get_ai_extracted_data(text_content):
 
 공고 내용: {text_content[:3000]}
 """
+    time.sleep(API_CALL_DELAY)  # 호출 전 딜레이로 RPM 제한 준수
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = client.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
             raw_text = response.text.strip()
             if raw_text.startswith("```"):
                 raw_text = raw_text.split("\n", 1)[1]
@@ -78,8 +82,8 @@ def get_ai_extracted_data(text_content):
                     raw_text = raw_text.rsplit("\n", 1)[0]
             return json.loads(raw_text.strip())
         except Exception as e:
-            if "429" in str(e) or "quota" in str(e).lower():
-                wait = 60 * (attempt + 1)
+            if "429" in str(e) or "quota" in str(e).lower() or "RESOURCE_EXHAUSTED" in str(e):
+                wait = 30 * (2 ** attempt)  # 30s, 60s, 120s
                 print(f"      [API 속도 제한] {wait}초 대기 중... ({attempt+1}/{max_retries})")
                 time.sleep(wait)
             else:
