@@ -73,7 +73,7 @@ def make_driver():
 def connect_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용 공고 (박사)")
+    sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용공고")
     try:
         existing_links = set(sheet.col_values(14))  # N열(14)이 링크
     except Exception:
