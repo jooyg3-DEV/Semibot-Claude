@@ -104,6 +104,8 @@ SEARCH_QUERIES_EN = [
     "process engineer Master PhD",
     "etch deposition lithography CMP metrology",
     "semiconductor R&D entry level",
+    "field service engineer semiconductor",
+    "application engineer",
 ]
 
 # ── 실행 설정 ────────────────────────────────────────────────

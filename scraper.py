@@ -264,6 +264,18 @@ def _collect_links_from_page(driver, company_name, local_links, job_list):
             continue
 
 
+def _scroll_to_load(driver):
+    """SPA/lazy-load 페이지에서 스크롤로 콘텐츠 렌더링 트리거."""
+    try:
+        for _ in range(4):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(0.8)
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(0.5)
+    except Exception:
+        pass
+
+
 def scrape_official_pages(company_name, driver, local_links):
     job_list = []
     urls = OFFICIAL_URLS.get(company_name, [])
@@ -272,7 +284,8 @@ def scrape_official_pages(company_name, driver, local_links):
     for url in urls:
         if not load_page(driver, url):
             continue
-        time.sleep(1.5)
+        time.sleep(3)  # SPA 초기 렌더링 대기 (1.5 → 3초)
+        _scroll_to_load(driver)  # lazy load 트리거
 
         # 검색창 유무 확인 (첫 번째 쿼리로 테스트)
         first_query = queries[0]
@@ -280,12 +293,14 @@ def scrape_official_pages(company_name, driver, local_links):
 
         if searched:
             print(f"      [검색] {company_name}: '{first_query}' 검색 성공")
+            _scroll_to_load(driver)
             _collect_links_from_page(driver, company_name, local_links, job_list)
 
             # 나머지 쿼리도 순차 검색 (검색창이 있을 때만)
             for query in queries[1:]:
                 if load_page(driver, url) and try_keyword_search(driver, query):
                     print(f"      [검색] {company_name}: '{query}' 검색")
+                    _scroll_to_load(driver)
                     _collect_links_from_page(driver, company_name, local_links, job_list)
         else:
             # 검색창 없음 → 페이지 전체 링크에서 수집 (fallback)
