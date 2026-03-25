@@ -194,42 +194,34 @@ def scrape_portal_info(company_name, driver, local_links):
             pass
     print(f"      [잡코리아] {company_name}: {jobkorea_count}개")
 
-    # LinkedIn (영문 검색, 글로벌)
-    li_kw = urllib.parse.quote(f"{en_query} Master OR Ph.D")
-    if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={li_kw}"):
+    # LinkedIn (Google 경유 검색 — 로그인 이슈 우회)
+    linkedin_count = 0
+    google_q = urllib.parse.quote(f'site:linkedin.com/jobs "{en_query}" engineer semiconductor')
+    if load_page(driver, f"https://www.google.com/search?q={google_q}&num=10"):
         try:
-            cur = driver.current_url
-            if "login" in cur or "authwall" in cur or "signup" in cur:
-                print(f"      [LinkedIn] {company_name}: 로그인 차단 감지 - 건너뜀")
-            else:
-                time.sleep(2)
-                found = 0
-                for job in driver.find_elements(By.CSS_SELECTOR, '.base-card, .job-search-card')[:5]:
-                    try:
-                        link_elem = job.find_element(By.CSS_SELECTOR, 'a[href*="linkedin.com/jobs"]')
-                        link = link_elem.get_attribute('href') or ''
-                        if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
-                            continue
-                        title_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__title, .job-search-card__title')
-                        title = title_elem.text.strip()
-                        company_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle, .job-search-card__company-name')
-                        if not _match_company(company_elem.text, company_name):
-                            continue
-                        try:
-                            location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
-                        except Exception:
-                            location = ''
-                        if match_title(title) is None or is_china(title + ' ' + location):
-                            continue
-                        job_list.append(create_job_row("LinkedIn", company_name, title, link))
-                        local_links.add(link)
-                        found += 1
-                    except Exception:
+            time.sleep(1.5)
+            for result in driver.find_elements(By.CSS_SELECTOR, 'div.g, div[data-ved] h3')[:10]:
+                try:
+                    a = result.find_element(By.CSS_SELECTOR, 'a')
+                    link = a.get_attribute('href') or ''
+                    if 'linkedin.com/jobs' not in link:
                         continue
-                if found == 0:
-                    print(f"      [LinkedIn] {company_name}: 결과 없음 (차단 가능성)")
+                    link = link.split('?')[0]
+                    if link in local_links:
+                        continue
+                    title = result.find_element(By.CSS_SELECTOR, 'h3').text.strip()
+                    if not title or len(title) < 5:
+                        continue
+                    if match_title(title) is None or is_china(title + ' ' + link):
+                        continue
+                    job_list.append(create_job_row("LinkedIn", company_name, title, link))
+                    local_links.add(link)
+                    linkedin_count += 1
+                except Exception:
+                    continue
         except Exception:
             pass
+    print(f"      [LinkedIn] {company_name}: {linkedin_count}개")
 
     # 잡다 (한국어 검색)
     jobda_count = 0
