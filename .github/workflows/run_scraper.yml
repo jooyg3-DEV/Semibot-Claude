@@ -1,0 +1,22 @@
+name: 1. Job Scraper (수집봇)
+
+on:
+  schedule:
+    - cron: '0 21,9 * * *'  # 한국 시간 06:00, 18:00
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: echo "$GCP_CREDENTIALS" > credentials.json
+      - env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python scraper.py
