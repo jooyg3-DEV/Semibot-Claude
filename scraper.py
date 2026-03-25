@@ -41,6 +41,8 @@ KOREAN_COMPANIES = config.KOREAN_COMPANY_NAMES
 SEARCH_QUERIES_KR = config.SEARCH_QUERIES_KR
 SEARCH_QUERIES_EN = config.SEARCH_QUERIES_EN
 
+LINKEDIN_COOKIE = os.environ.get("LINKEDIN_COOKIE", "")  # li_at 쿠키값
+
 OFFICIAL_URLS = {
     "삼성전자":          ["https://www.samsungcareers.com/hr/"],
     "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
@@ -194,33 +196,45 @@ def scrape_portal_info(company_name, driver, local_links):
             pass
     print(f"      [잡코리아] {company_name}: {jobkorea_count}개")
 
-    # LinkedIn (Google 경유 검색 — 로그인 이슈 우회)
+    # LinkedIn (쿠키 인증)
     linkedin_count = 0
-    google_q = urllib.parse.quote(f'site:linkedin.com/jobs "{en_query}" engineer semiconductor')
-    if load_page(driver, f"https://www.google.com/search?q={google_q}&num=10"):
+    if not LINKEDIN_COOKIE:
+        print(f"      [LinkedIn] LINKEDIN_COOKIE 미설정 - 건너뜀")
+    else:
+        li_kw = urllib.parse.quote(f"{en_query} process engineer semiconductor")
+        li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD"
         try:
-            time.sleep(1.5)
-            for result in driver.find_elements(By.CSS_SELECTOR, 'div.g, div[data-ved] h3')[:10]:
-                try:
-                    a = result.find_element(By.CSS_SELECTOR, 'a')
-                    link = a.get_attribute('href') or ''
-                    if 'linkedin.com/jobs' not in link:
+            driver.get("https://www.linkedin.com")
+            driver.add_cookie({"name": "li_at", "value": LINKEDIN_COOKIE, "domain": ".linkedin.com"})
+            driver.get(li_url)
+            time.sleep(2)
+            cur = driver.current_url
+            if "login" in cur or "authwall" in cur or "signup" in cur:
+                print(f"      [LinkedIn] {company_name}: 쿠키 만료 - 건너뜀")
+            else:
+                for job in driver.find_elements(By.CSS_SELECTOR, '.base-card, .job-search-card')[:10]:
+                    try:
+                        link_elem = job.find_element(By.CSS_SELECTOR, 'a[href*="linkedin.com/jobs"]')
+                        link = link_elem.get_attribute('href').split('?')[0]
+                        if link in local_links:
+                            continue
+                        title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title, .job-search-card__title').text.strip()
+                        company_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle, .job-search-card__company-name')
+                        if not _match_company(company_elem.text, company_name):
+                            continue
+                        try:
+                            location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
+                        except Exception:
+                            location = ''
+                        if match_title(title) is None or is_china(title + ' ' + location):
+                            continue
+                        job_list.append(create_job_row("LinkedIn", company_name, title, link))
+                        local_links.add(link)
+                        linkedin_count += 1
+                    except Exception:
                         continue
-                    link = link.split('?')[0]
-                    if link in local_links:
-                        continue
-                    title = result.find_element(By.CSS_SELECTOR, 'h3').text.strip()
-                    if not title or len(title) < 5:
-                        continue
-                    if match_title(title) is None or is_china(title + ' ' + link):
-                        continue
-                    job_list.append(create_job_row("LinkedIn", company_name, title, link))
-                    local_links.add(link)
-                    linkedin_count += 1
-                except Exception:
-                    continue
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"      [LinkedIn] {company_name}: 오류 - {e}")
     print(f"      [LinkedIn] {company_name}: {linkedin_count}개")
 
     # 잡다 (한국어 검색)
