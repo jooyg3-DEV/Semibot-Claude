@@ -11,6 +11,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+from utils import match_title
+
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
@@ -23,17 +25,12 @@ TARGET_COMPANIES = [
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
 
-# 회사 우선순위 (1순위 = 핵심, 2순위 = 주요)
-COMPANY_RANK = {
-    "삼성전자": 1, "SK하이닉스": 1, "ASML": 1,
-    "Applied Materials": 1, "KLA": 1,
-    "Lam Research": 2, "Tokyo Electron": 2, "Micron": 2,
-    "Intel": 2, "TSMC": 2, "NVIDIA": 2, "AMD": 2,
-}
+# 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
+COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
     "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://www.skcareers.com/Recruit"],
+    "SK하이닉스": ["https://recruit.skhynix.com/"],  # SK 그룹 통합 포털(skcareers.com) 대신 SK하이닉스 전용 사이트
     "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
     "Lam Research": ["https://lamresearch-recruit.com/jobs"],
@@ -46,7 +43,7 @@ OFFICIAL_URLS = {
 }
 
 def make_driver():
-    """각 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
+    """성제 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
@@ -104,12 +101,14 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
+                    if match_title(title) is None:
+                        continue
                     job_list.append(create_job_row("사람인", company_name, title, link))
                     local_links.add(link)
         except Exception:
             pass
 
-    # 잡코리아
+    # 잊코리아
     if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={company_name}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
@@ -118,7 +117,10 @@ def scrape_portal_info(company_name, driver, local_links):
                 if link in local_links:
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
-                    job_list.append(create_job_row("잡코리아", company_name, title_elem.text.strip(), link))
+                    title = title_elem.text.strip()
+                    if match_title(title) is None:
+                        continue
+                    job_list.append(create_job_row("잊코리아", company_name, title, link))
                     local_links.add(link)
         except Exception:
             pass
@@ -133,12 +135,14 @@ def scrape_portal_info(company_name, driver, local_links):
                     continue
                 if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
                     title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
+                    if match_title(title) is None:
+                        continue
                     job_list.append(create_job_row("LinkedIn", company_name, title, link))
                     local_links.add(link)
         except Exception:
             pass
 
-    # 잡다
+    # 잊다
     if load_page(driver, f"https://www.jobda.im/position?keyword={company_name}"):
         try:
             time.sleep(1)
@@ -158,8 +162,10 @@ def scrape_portal_info(company_name, driver, local_links):
                             continue
                     if not title or len(title) < 3 or link in local_links:
                         continue
+                    if match_title(title) is None:
+                        continue
                     if is_target_company(item.text, company_name):
-                        job_list.append(create_job_row("잡다", company_name, title, link))
+                        job_list.append(create_job_row("잊다", company_name, title, link))
                         local_links.add(link)
                 except Exception:
                     continue
@@ -186,6 +192,8 @@ def scrape_official_pages(company_name, driver, local_links):
                         continue
                     valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
                     if any(keyword in link.lower() for keyword in valid_keywords):
+                        if match_title(title) is None:
+                            continue
                         job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
                         local_links.add(link)
                         found_count += 1
@@ -242,7 +250,7 @@ if __name__ == "__main__":
     sheet, existing_links = connect_google_sheet()
     existing_links_snapshot = frozenset(existing_links)  # 불변 스냅샷 (스레드 공유)
 
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (총 {len(TARGET_COMPANIES)}개 회사)...")
+    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (잘 {len(TARGET_COMPANIES)}개 회사)...")
     all_results = []  # (link, row) 쌍
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
