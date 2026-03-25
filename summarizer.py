@@ -1,111 +1,80 @@
-import os
 import time
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-# ==========================================
-# ⚙️ [설정]
-# ==========================================
-SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
-BATCH_SIZE = 10
-MAX_WORKERS = 3
-MAX_TEXT_LEN = 3000  # 시트 셀 한도 고려
+import config
+import utils
 
 
-def make_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--blink-settings=imagesEnabled=false')
-    options.add_argument('--disable-extensions')
-    driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(15)
-    return driver
+def process_job(task):
+    row_num, row = task
+    company = row[config.COL_회사명]
+    link    = row[config.COL_링크]
+    print(f"  ▶ [{company}] 원문 수집 중... (행: {row_num})")
 
-
-def connect_google_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    return gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용 공고 (박사)")
-
-
-def process_single_job(task):
-    row_num, row_data = task
-    company_name = row_data[4]
-    job_link = row_data[12]
-    print(f"  \u25b6 [{company_name}] 원문 수집 중... (행: {row_num})")
-
-    driver = make_driver()
+    driver = utils.make_driver()
     try:
-        driver.get(job_link)
+        driver.get(link)
         time.sleep(3)
-        raw_text = driver.find_element(By.TAG_NAME, "body").text.strip()
+        body_text = driver.find_element(By.TAG_NAME, "body").text.strip()
     except Exception as e:
-        print(f"      [오류] 페이지 접속 실패: {e}")
-        return row_num, None, "페이지 접속 불가"
+        print(f"      [오류] 접속 실패: {e}")
+        return row_num, None, None
     finally:
         driver.quit()
 
-    if not raw_text or len(raw_text) < 30:
-        return row_num, None, "텍스트 없음"
+    if not body_text or len(body_text) < 30:
+        return row_num, None, None
 
-    truncated = raw_text[:MAX_TEXT_LEN]
-    print(f"      [성공] {company_name} 원문 {len(raw_text)}자 수집 (저장: {len(truncated)}자)")
-    return row_num, truncated, None
+    phd_flag = "✓" if utils.has_phd(body_text) else "-"
+    truncated = body_text[:config.MAX_TEXT_LEN]
+    print(f"      [완료] {company} | 박사우대: {phd_flag} | {len(body_text)}자")
+    return row_num, truncated, phd_flag
 
 
 if __name__ == "__main__":
-    print("📊 [수집봇] 구글 시트 연결 중...")
-    sheet = connect_google_sheet()
-
-    print("\n🤖 [수집봇] 시트의 빈칸(AI 대기)을 채용 원문으로 채웁니다...")
+    print("📊 구글 시트 연결 중...")
+    sheet = utils.connect_sheet()
     all_rows = sheet.get_all_values()
-    pending_tasks = []
 
-    for i, row in enumerate(all_rows):
-        if len(row) >= 13 and row[6] == "AI 대기":
-            pending_tasks.append((i + 1, row))
+    pending = [
+        (i + 1, row)
+        for i, row in enumerate(all_rows)
+        if len(row) > config.COL_상태 and row[config.COL_상태] == config.STATUS_PENDING
+    ]
 
-    if not pending_tasks:
-        print("✨ 처리할 항목이 없습니다!")
+    if not pending:
+        print("✨ 처리할 항목 없음")
     else:
-        tasks_to_process = pending_tasks[:BATCH_SIZE]
-        print(f"🚦 밀린 숙제 {len(pending_tasks)}개 중, {len(tasks_to_process)}개를 {MAX_WORKERS}개 병렬로 처리합니다.")
+        batch = pending[:config.BATCH_SIZE]
+        print(f"🚦 대기 {len(pending)}개 중 {len(batch)}개를 {config.MAX_WORKERS}개 병렬 처리...")
 
         results = {}
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(process_single_job, task): task for task in tasks_to_process}
+        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as ex:
+            futures = {ex.submit(process_job, task): task for task in batch}
             for future in as_completed(futures):
-                row_num, text, error = future.result()
-                results[row_num] = (text, error)
+                row_num, text, phd = future.result()
+                results[row_num] = (text, phd)
 
-        print("\n📝 처리 결과를 시트에 일괄 업데이트 중...")
-        all_cells_to_update = []
-
-        for row_num, (text, error) in results.items():
+        print("\n📝 시트 업데이트 중...")
+        # Range B:K = 10 cells (indices 0~9)
+        # B(0)=상태 / H(6)=지원자격 / J(8)=박사우대 / K(9)=원문
+        cells = []
+        for row_num, (text, phd) in results.items():
+            row_cells = sheet.range(f"B{row_num}:K{row_num}")
             if text:
-                cell_list = sheet.range(f'G{row_num}:L{row_num}')
-                cell_list[0].value = "원문 참조"  # 근무지
-                cell_list[1].value = "원문 참조"  # 근무형태
-                cell_list[2].value = "원문 참조"  # 지원자격
-                cell_list[3].value = "원문 참조"  # 박사우대
-                cell_list[4].value = "원문 참조"  # 채용직무
-                cell_list[5].value = text         # 직무설명 → 원문 텍스트
-                all_cells_to_update.extend(cell_list)
-            elif error:
-                sheet.update_cell(row_num, 7, error)
+                row_cells[0].value = config.STATUS_DONE  # B: 상태
+                row_cells[6].value = "원문 참조"          # H: 지원자격
+                row_cells[8].value = phd                 # J: 박사우대
+                row_cells[9].value = text                # K: 원문
+            else:
+                row_cells[0].value = config.STATUS_ERROR # B: 상태
+            cells.extend(row_cells)
 
-        if all_cells_to_update:
-            sheet.update_cells(all_cells_to_update)
-            success_count = sum(1 for t, e in results.values() if t)
-            print(f"  ✓ {success_count}개 행 업데이트 완료")
+        if cells:
+            sheet.update_cells(cells)
+            success = sum(1 for t, _ in results.values() if t)
+            print(f"  ✓ {success}/{len(results)}개 업데이트 완료")
 
-    print("\n🛑 [수집봇] 안전하게 종료되었습니다.")
+    print("\n🛑 요약봇 완료")
