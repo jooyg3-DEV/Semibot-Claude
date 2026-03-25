@@ -62,19 +62,18 @@ def get_ai_extracted_data(text_content):
     prompt = f"""다음 채용 공고 텍스트를 읽고, **반드시 아래의 JSON 양식으로만** 답변해 줘.
 
 {{
-  "근무지": "원문 그대로 복사",
-  "근무형태": "원문 그대로 복사",
   "지원자격": "원문 그대로 복사",
-  "박사우대": "원문 그대로 복사 (없으면 '해당 내용 없음')",
   "채용직무": "원문 그대로 복사",
-  "직무설명": "한국어 5문장 요약"
+  "근무지": "원문 그대로 복사",
+  "채용형태": "원문 그대로 복사 (예: 정규직, 계약직, 인턴, Full-time, Contract 등)",
+  "직무설명": "원문 그대로 복사",
+  "박사우대": "원문 그대로 복사 (없으면 '해당 내용 없음')"
 }}
 
 [절대 규칙]
-1. 근무지~채용직무: 절대 요약/번역 금지. 영어면 영어 원문 100% 복사.
-2. 직무설명: 한국어로 5문장 요약.
-3. 텍스트가 채용 공고가 아니면 모든 항목에 "확인 불가" 기재.
-4. JSON만 출력. 다른 텍스트 없이.
+1. 모든 항목: 절대 요약/번역 금지. 영어면 영어 원문 100% 복사.
+2. 텍스트가 채용 공고가 아니면 모든 항목에 "확인 불가" 기재.
+3. JSON만 출력. 다른 텍스트 없이.
 
 공고 내용: {text_content[:3000]}
 """
@@ -105,8 +104,8 @@ def get_ai_extracted_data(text_content):
 def process_single_job(task):
     """단일 공고의 페이지 수집 + AI 요약을 독립 드라이버로 처리 (스레드 안전)"""
     row_num, row_data = task
-    company_name = row_data[4]
-    job_link = row_data[12]
+    company_name = row_data[5]   # F열: 회사
+    job_link = row_data[13]      # N열: 링크
     print(f"  ▶ [{company_name}] 상세 분석 중... (행: {row_num})")
 
     driver = make_driver()
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     pending_tasks = []
 
     for i, row in enumerate(all_rows):
-        if len(row) >= 13 and row[6] == "AI 대기":
+        if len(row) >= 14 and row[7] == "AI 대기":  # H열(index 7): 지원자격
             pending_tasks.append((i + 1, row))
 
     if not pending_tasks:
@@ -161,16 +160,17 @@ if __name__ == "__main__":
 
         for row_num, (ai_data, error) in results.items():
             if ai_data:
-                cell_list = sheet.range(f'G{row_num}:L{row_num}')
-                cell_list[0].value = ai_data.get("근무지", "미상")
-                cell_list[1].value = ai_data.get("근무형태", "미상")
-                cell_list[2].value = ai_data.get("지원자격", "미상")
-                cell_list[3].value = ai_data.get("박사우대", "해당 내용 없음")
-                cell_list[4].value = ai_data.get("채용직무", "미상")
-                cell_list[5].value = ai_data.get("직무설명", "확인 불가")
+                # H(8):지원자격, I(9):채용직무, J(10):근무지, K(11):채용형태, L(12):직무설명, M(13):박사우대
+                cell_list = sheet.range(f'H{row_num}:M{row_num}')
+                cell_list[0].value = ai_data.get("지원자격", "미상")
+                cell_list[1].value = ai_data.get("채용직무", "미상")
+                cell_list[2].value = ai_data.get("근무지", "미상")
+                cell_list[3].value = ai_data.get("채용형태", "미상")
+                cell_list[4].value = ai_data.get("직무설명", "확인 불가")
+                cell_list[5].value = ai_data.get("박사우대", "해당 내용 없음")
                 all_cells_to_update.extend(cell_list)
             elif error:
-                sheet.update_cell(row_num, 7, error)
+                sheet.update_cell(row_num, 8, error)  # H열에 오류 기재
 
         if all_cells_to_update:
             sheet.update_cells(all_cells_to_update)

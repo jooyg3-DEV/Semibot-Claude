@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import threading
 from datetime import datetime
@@ -23,6 +24,9 @@ TARGET_COMPANIES = [
     "KLA", "Lam Research", "Tokyo Electron", "Micron",
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
+
+# 회사 순위 (TARGET_COMPANIES 순서 기반)
+COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
     "삼성전자": ["https://www.samsungcareers.com/hr/"],
@@ -71,7 +75,7 @@ def connect_google_sheet():
     creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용 공고 (박사)")
     try:
-        existing_links = set(sheet.col_values(13))  # M열(13)이 링크
+        existing_links = set(sheet.col_values(14))  # N열(14)이 링크
     except Exception:
         existing_links = set()
     return sheet, existing_links
@@ -83,8 +87,11 @@ def is_target_company(actual, target):
 
 def create_job_row(source, company, title, link):
     today = datetime.today().strftime('%Y-%m-%d')
-    # A:검색일, B:출처, C:마감일, D:상시, E:회사, F:공고명, G~L:AI대기, M:링크
-    return [today, source, today, "상시", company, title, "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
+    rank = COMPANY_RANK.get(company, 99)
+    # A:검색일, B:순위, C:출처, D:마감일, E:상시, F:회사, G:공고명
+    # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:직무설명, M:박사우대, N:링크
+    return [today, rank, source, today, "상시", company, title,
+            "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
 
 
 def load_page(driver, url):
@@ -187,6 +194,32 @@ def scrape_company(company, existing_links_snapshot):
     return job_list
 
 
+def sort_sheet(sheet):
+    """날짜 → 순위 → 출처 순으로 시트 정렬"""
+    all_rows = sheet.get_all_values()
+    if len(all_rows) <= 1:
+        return
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    if not date_pattern.match(str(all_rows[0][0])):
+        header = all_rows[0]
+        data = all_rows[1:]
+    else:
+        header = None
+        data = all_rows
+
+    def sort_key(row):
+        date = row[0] if len(row) > 0 else ''
+        rank = int(row[1]) if len(row) > 1 and str(row[1]).isdigit() else 999
+        source = row[2] if len(row) > 2 else ''
+        return (date, rank, source)
+
+    data.sort(key=sort_key)
+    result = ([header] if header else []) + data
+    sheet.clear()
+    sheet.update(result, 'A1')
+    print(f"  ✓ 시트 정렬 완료 ({len(data)}개 행)")
+
+
 if __name__ == "__main__":
     print("📊 [수집봇] 구글 시트 연결 중...")
     sheet, existing_links = connect_google_sheet()
@@ -210,7 +243,7 @@ if __name__ == "__main__":
             jobs = future.result()
             with dedup_lock:
                 for job in jobs:
-                    link = job[12]  # M열 링크
+                    link = job[13]  # N열 링크
                     if link not in seen_links:
                         seen_links.add(link)
                         all_results.append(job)
@@ -219,6 +252,8 @@ if __name__ == "__main__":
         print(f"\n📝 새로운 공고 {len(all_results)}개를 시트에 일괄 등록합니다.")
         # append_rows()로 한 번에 쓰기 (기존 N회 × sleep(1) 제거)
         sheet.append_rows(all_results, value_input_option='USER_ENTERED')
+        print("\n🔃 시트 정렬 중...")
+        sort_sheet(sheet)
     else:
         print("\n✨ 새로 올라온 공고가 없습니다.")
 
