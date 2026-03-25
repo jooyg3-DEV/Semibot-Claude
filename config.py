@@ -16,11 +16,14 @@ COMPANIES = [
     {"name": "Micron",            "priority": 2, "search_kr": "마이크론",          "search_en": "Micron Technology"},
     {"name": "Lam Research",      "priority": 2, "search_kr": "램리서치",          "search_en": "Lam Research"},
     {"name": "Tokyo Electron",    "priority": 2, "search_kr": "TEL",              "search_en": "Tokyo Electron"},
+    {"name": "NVIDIA",            "priority": 2, "search_kr": "NVIDIA",           "search_en": "NVIDIA"},
+    {"name": "AMD",               "priority": 2, "search_kr": "AMD",              "search_en": "AMD"},
 ]
 
 # ── 공식 채용 페이지 ─────────────────────────────────────────
 OFFICIAL_URLS = {
-    "삼성전자":          ["https://www.samsungcareers.com/"],
+    "삼성전자":          ["https://www.samsungcareers.com/hr/",
+                          "https://careers.samsung.com/"],
     "SK하이닉스":        ["https://recruit.skhynix.com/"],
     "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
                           "https://www.asml.com/en/careers/find-your-job"],
@@ -34,6 +37,8 @@ OFFICIAL_URLS = {
                           "https://careers.lamresearch.com/careers"],
     "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career",
                           "https://www.tel.com/careers/"],
+    "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
+    "AMD":               ["https://careers.amd.com/careers-home/jobs"],
 }
 
 # ── 시트 컬럼 인덱스 (0-based) ───────────────────────────────

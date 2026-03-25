@@ -2,6 +2,7 @@ import os
 import re
 import time
 import threading
+import urllib.parse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -27,8 +28,8 @@ TARGET_COMPANIES = [
     "Intel", "TSMC", "NVIDIA", "AMD"
 ]
 
-# 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
-COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
+# 회사 우선순위 — config.py의 priority 그룹(1순위/2순위)을 사용
+COMPANY_RANK = {c["name"]: c["priority"] for c in config.COMPANIES}
 
 # 공식 홈페이지 검색 쿼리 — config.py에서 관리
 # 학력(석사/박사/신입/Master/PhD/Entry Level) + 직무 키워드 조합으로 3개씩 순회
@@ -216,6 +217,32 @@ def scrape_portal_info(company_name, driver, local_links):
         except Exception:
             pass
 
+    # Indeed (해외 직무)
+    indeed_q = urllib.parse.quote(f"{company_name} process engineer semiconductor phd")
+    if load_page(driver, f"https://www.indeed.com/jobs?q={indeed_q}&sort=date"):
+        try:
+            time.sleep(2)
+            for job in driver.find_elements(By.CSS_SELECTOR, '.job_seen_beacon')[:5]:
+                try:
+                    title_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="jobTitle"] a, h2.jobTitle a')
+                    link = title_elem.get_attribute('href') or ''
+                    if not link.startswith('http'):
+                        link = 'https://www.indeed.com' + link
+                    title = title_elem.text.strip()
+                    company_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="company-name"], .companyName')
+                    if link in local_links or not title or len(title) < 5:
+                        continue
+                    if not is_target_company(company_elem.text, company_name):
+                        continue
+                    if match_title(title) is None or is_china(title):
+                        continue
+                    job_list.append(create_job_row("Indeed", company_name, title, link))
+                    local_links.add(link)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
     return job_list
 
 
@@ -319,6 +346,7 @@ if __name__ == "__main__":
     all_results = []  # (link, row) 쌍
     dedup_lock = threading.Lock()
     seen_links = set(existing_links)
+    company_status = {}  # 기업별 수집 결과 추적
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
@@ -326,13 +354,20 @@ if __name__ == "__main__":
             for company in TARGET_COMPANIES
         }
         for future in as_completed(futures):
-            jobs = future.result()
-            with dedup_lock:
-                for job in jobs:
-                    link = job[13]  # N열 링크
-                    if link not in seen_links:
-                        seen_links.add(link)
-                        all_results.append(job)
+            company = futures[future]
+            try:
+                jobs = future.result()
+                new_count = 0
+                with dedup_lock:
+                    for job in jobs:
+                        link = job[13]  # N열 링크
+                        if link not in seen_links:
+                            seen_links.add(link)
+                            all_results.append(job)
+                            new_count += 1
+                company_status[company] = {"found": new_count, "error": None}
+            except Exception as e:
+                company_status[company] = {"found": 0, "error": str(e)}
 
     if all_results:
         print(f"\n📝 새로운 공고 {len(all_results)}개를 시트에 일괄 등록합니다.")
@@ -343,4 +378,16 @@ if __name__ == "__main__":
     else:
         print("\n✨ 새로 올라온 공고가 없습니다.")
 
+    print("\n📋 [수집봇] 기업별 수집 결과:")
+    checked = 0
+    for company in TARGET_COMPANIES:
+        status = company_status.get(company)
+        if status is None:
+            print(f"  ⚠️  {company}: 미실행")
+        elif status["error"]:
+            print(f"  ✗ {company}: 오류 - {status['error']}")
+        else:
+            print(f"  ✓ {company}: 신규 {status['found']}개")
+            checked += 1
+    print(f"\n  → 전체 {len(TARGET_COMPANIES)}개 중 {checked}개 정상 완료")
     print("\n🛑 [수집봇] 안전하게 종료되었습니다.")
