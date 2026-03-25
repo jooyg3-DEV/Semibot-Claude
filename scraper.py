@@ -156,6 +156,7 @@ def scrape_portal_info(company_name, driver, local_links):
     en_query = COMPANY_SEARCH_EN.get(company_name, company_name)  # 글로벌 포털용
 
     # 사람인 (한국어 검색)
+    saramin_count = 0
     if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={kr_query}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
@@ -168,10 +169,13 @@ def scrape_portal_info(company_name, driver, local_links):
                         continue
                     job_list.append(create_job_row("사람인", company_name, title, link))
                     local_links.add(link)
+                    saramin_count += 1
         except Exception:
             pass
+    print(f"      [사람인] {company_name}: {saramin_count}개")
 
     # 잡코리아 (한국어 검색)
+    jobkorea_count = 0
     if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={kr_query}+석박사"):
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
@@ -185,8 +189,10 @@ def scrape_portal_info(company_name, driver, local_links):
                         continue
                     job_list.append(create_job_row("잡코리아", company_name, title, link))
                     local_links.add(link)
+                    jobkorea_count += 1
         except Exception:
             pass
+    print(f"      [잡코리아] {company_name}: {jobkorea_count}개")
 
     # LinkedIn (영문 검색, 글로벌)
     li_kw = urllib.parse.quote(f"{en_query} Master OR Ph.D")
@@ -226,6 +232,7 @@ def scrape_portal_info(company_name, driver, local_links):
             pass
 
     # 잡다 (한국어 검색)
+    jobda_count = 0
     if load_page(driver, f"https://www.jobda.im/position?keyword={kr_query}"):
         try:
             time.sleep(1)
@@ -250,12 +257,15 @@ def scrape_portal_info(company_name, driver, local_links):
                     if _match_company(item.text, company_name):
                         job_list.append(create_job_row("잡다", company_name, title, link))
                         local_links.add(link)
+                        jobda_count += 1
                 except Exception:
                     continue
         except Exception:
             pass
+    print(f"      [잡다] {company_name}: {jobda_count}개")
 
     # Indeed (영문 검색, 해외 직무)
+    indeed_count = 0
     indeed_q = urllib.parse.quote(f"{en_query} process engineer semiconductor phd")
     if load_page(driver, f"https://www.indeed.com/jobs?q={indeed_q}&sort=date"):
         try:
@@ -276,10 +286,12 @@ def scrape_portal_info(company_name, driver, local_links):
                         continue
                     job_list.append(create_job_row("Indeed", company_name, title, link))
                     local_links.add(link)
+                    indeed_count += 1
                 except Exception:
                     continue
         except Exception:
             pass
+    print(f"      [Indeed] {company_name}: {indeed_count}개")
 
     return job_list
 

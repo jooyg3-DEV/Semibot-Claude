@@ -79,9 +79,38 @@ EXCLUDE_EN = ["sales", "marketing", " hr ", "finance", "legal", "software", "pro
 
 # ── 중국 지역 제외 키워드 ────────────────────────────────────
 CHINA_KEYWORDS = [
-    "중국", "china", "beijing", "shanghai", "shenzhen", "guangzhou",
-    "chengdu", "wuhan", "nanjing", "suzhou", "hangzhou",
-    "베이징", "상하이", "선전", "광저우", "청두", "시안", "xian",
+    # 국가
+    "중국", "china",
+    # 직할시
+    "beijing", "베이징",
+    "shanghai", "상하이",
+    "tianjin", "텐진",
+    "chongqing", "충칭",
+    # 주요 도시
+    "shenzhen", "선전",
+    "guangzhou", "광저우",
+    "chengdu", "청두",
+    "wuhan", "우한",
+    "nanjing", "난징",
+    "suzhou", "쑤저우",
+    "hangzhou", "항저우",
+    "xian", "xi'an", "시안",
+    "dalian", "다롄",
+    "qingdao", "칭다오",
+    "xiamen", "샤먼",
+    "zhengzhou", "정저우",
+    "changsha", "창사",
+    "hefei", "허페이",
+    "kunming", "쿤밍",
+    "shenyang", "선양",
+    "harbin", "하얼빈",
+    "foshan", "포산",
+    "dongguan", "둥관",
+    "ningbo", "닝보",
+    "wuxi", "우시",
+    "wenzhou", "원저우",
+    "jinan", "지난",
+    "zhongshan", "중산",
 ]
 
 # ── 박사우대 감지 키워드 ─────────────────────────────────────
