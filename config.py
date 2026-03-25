@@ -62,9 +62,11 @@ STRONG_KR = ["공정", "증착", "식각", "리소그래피", "세정", "계측"
 STRONG_EN = ["process", "etch", "deposition", "lithograph", "cmp", "cvd", "pvd", "ald",
              "implant", "diffusion", "clean", "metrology", "oxidation", "fab"]
 
-WEAK_KR = ["연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "통합", "수율", "반도체"]
+WEAK_KR = ["연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "통합", "수율", "반도체",
+           "석사", "신입"]
 WEAK_EN = ["engineer", "r&d", "research", "scientist", "technology", "material",
-           "analysis", "yield", "integration", "device", "semiconductor"]
+           "analysis", "yield", "integration", "device", "semiconductor",
+           "master", "master's", "masters", "fresh graduate", "entry level", "new graduate"]
 
 EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발"]
 EXCLUDE_EN = ["sales", "marketing", " hr ", "finance", "legal", "software", "procurement",
@@ -81,6 +83,22 @@ CHINA_KEYWORDS = [
 PHD_KEYWORDS = [
     "박사", "ph.d", "phd", "박사우대", "박사 우대", "doctoral",
     "doctorate", "박사학위", "박사 학위", "박사 과정",
+]
+
+# ── 공식 채용 페이지 키워드 검색 쿼리 ────────────────────────
+# 각 사이트 검색창에 순서대로 입력, 쿼리별로 최대 5건 수집
+KOREAN_COMPANY_NAMES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
+
+SEARCH_QUERIES_KR = [
+    "반도체 공정 석사",
+    "반도체 공정 박사 신입",
+    "엔지니어 연구원 석사",
+]
+
+SEARCH_QUERIES_EN = [
+    "process engineer Master PhD",
+    "etch deposition lithography CMP metrology",
+    "semiconductor R&D entry level",
 ]
 
 # ── 실행 설정 ────────────────────────────────────────────────

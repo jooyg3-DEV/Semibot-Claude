@@ -13,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 from utils import match_title, is_china
+import config
 
 # ==========================================
 # ⚙️ [설정]
@@ -29,10 +30,11 @@ TARGET_COMPANIES = [
 # 회사 우선순위 (삼성전자=1, SK하이닉스=2, ...)
 COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
-# 공식 홈페이지 검색 키워드 (한국어 사이트 / 영문 사이트 구분)
-KOREAN_COMPANIES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
-SEARCH_TERM_KR = "반도체 공정 엔지니어"
-SEARCH_TERM_EN = "process engineer semiconductor"
+# 공식 홈페이지 검색 쿼리 — config.py에서 관리
+# 학력(석사/박사/신입/Master/PhD/Entry Level) + 직무 키워드 조합으로 3개씩 순회
+KOREAN_COMPANIES = config.KOREAN_COMPANY_NAMES
+SEARCH_QUERIES_KR = config.SEARCH_QUERIES_KR
+SEARCH_QUERIES_EN = config.SEARCH_QUERIES_EN
 
 OFFICIAL_URLS = {
     "삼성전자":          ["https://www.samsungcareers.com/hr/"],
@@ -217,39 +219,55 @@ def scrape_portal_info(company_name, driver, local_links):
     return job_list
 
 
+def _collect_links_from_page(driver, company_name, local_links, job_list, max_per_query=5):
+    """현재 드라이버 페이지에서 공고 링크를 추출해 job_list에 추가."""
+    valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
+    found = 0
+    for elem in driver.find_elements(By.TAG_NAME, 'a'):
+        if found >= max_per_query:
+            break
+        try:
+            link = elem.get_attribute('href')
+            title = elem.text.strip()
+            if not link or len(title) < 5 or link in local_links:
+                continue
+            if any(kw in link.lower() for kw in valid_url_kw):
+                if match_title(title) is None or is_china(title + ' ' + link):
+                    continue
+                job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
+                local_links.add(link)
+                found += 1
+        except Exception:
+            continue
+
+
 def scrape_official_pages(company_name, driver, local_links):
     job_list = []
     urls = OFFICIAL_URLS.get(company_name, [])
-    keyword = SEARCH_TERM_KR if company_name in KOREAN_COMPANIES else SEARCH_TERM_EN
+    queries = SEARCH_QUERIES_KR if company_name in KOREAN_COMPANIES else SEARCH_QUERIES_EN
 
     for url in urls:
         if not load_page(driver, url):
             continue
         time.sleep(1.5)
 
-        # 검색창에 키워드 입력 시도 (실패해도 현재 페이지에서 계속 진행)
-        searched = try_keyword_search(driver, keyword)
-        if searched:
-            print(f"      [검색] {company_name} 공식 페이지에서 '{keyword}' 검색 완료")
+        # 검색창 유무 확인 (첫 번째 쿼리로 테스트)
+        first_query = queries[0]
+        searched = try_keyword_search(driver, first_query)
 
-        found_count = 0
-        for elem in driver.find_elements(By.TAG_NAME, 'a'):
-            if found_count >= 5:
-                break
-            try:
-                link = elem.get_attribute('href')
-                title = elem.text.strip()
-                if not link or len(title) < 5 or link in local_links:
-                    continue
-                valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-                if any(kw in link.lower() for kw in valid_keywords):
-                    if match_title(title) is None or is_china(title + ' ' + link):
-                        continue
-                    job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                    local_links.add(link)
-                    found_count += 1
-            except Exception:
-                continue
+        if searched:
+            print(f"      [검색] {company_name}: '{first_query}' 검색 성공")
+            _collect_links_from_page(driver, company_name, local_links, job_list)
+
+            # 나머지 쿼리도 순차 검색 (검색창이 있을 때만)
+            for query in queries[1:]:
+                if load_page(driver, url) and try_keyword_search(driver, query):
+                    print(f"      [검색] {company_name}: '{query}' 검색")
+                    _collect_links_from_page(driver, company_name, local_links, job_list)
+        else:
+            # 검색창 없음 → 페이지 전체 링크에서 수집 (fallback)
+            _collect_links_from_page(driver, company_name, local_links, job_list)
+
     return job_list
 
 
