@@ -1,200 +1,263 @@
-import os
 import time
 import threading
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import quote
 
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-# ==========================================
-# ⚙️ [설정]
-# ==========================================
-SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
-MAX_WORKERS = 4
-
-TARGET_COMPANIES = [
-    "삼성전자", "SK하이닉스", "ASML", "Applied Materials",
-    "KLA", "Lam Research", "Tokyo Electron", "Micron",
-    "Intel", "TSMC", "NVIDIA", "AMD"
-]
-
-OFFICIAL_URLS = {
-    "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://www.skcareers.com/Recruit/Index?searchText="],
-    "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
-    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
-    "Lam Research": ["https://lamresearch-recruit.com/jobs", "https://careers.lamresearch.com/careers"],
-    "KLA": ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Tokyo Electron": ["https://tel.recruiter.co.kr/career/career"],
-    "Micron": ["https://careers.micron.com/careers"],
-    "TSMC": ["https://www.tsmc.com/static/english/careers/index.htm"],
-    "Intel": ["https://intel.wd1.myworkdayjobs.com/External"],
-    "NVIDIA": ["https://nvidia.eightfold.ai/careers"],
-    "AMD": ["https://careers.amd.com/careers-home/jobs"]
-}
+import config
+import utils
 
 
-def make_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--blink-settings=imagesEnabled=false')
-    options.add_argument('--disable-extensions')
-    driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(15)
-    return driver
-
-
-def connect_google_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용 공고 (박사)")
-    try:
-        existing_links = set(sheet.col_values(13))
-    except Exception:
-        existing_links = set()
-    return sheet, existing_links
-
-
-def is_target_company(actual, target):
-    return target.lower().replace(" ", "") in actual.lower().replace(" ", "")
-
-
-def create_job_row(source, company, title, link):
-    today = datetime.today().strftime('%Y-%m-%d')
-    return [today, source, today, "상시", company, title, "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
-
-
-def load_page(driver, url):
+def load(driver, url, wait=2):
     try:
         driver.get(url)
-        time.sleep(1.5)
+        time.sleep(wait)
         return True
     except Exception:
         return False
 
 
-def scrape_portal_info(company_name, driver, local_links):
-    job_list = []
+def company_match(text, company):
+    t = text.lower().replace(" ", "")
+    return (
+        company["name"].lower().replace(" ", "") in t or
+        company["search_kr"].lower().replace(" ", "") in t or
+        company["search_en"].lower().replace(" ", "") in t
+    )
 
-    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={company_name}+석박사"):
-        try:
-            for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
-                link = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
-                if link in local_links:
+
+# ── 사람인 ───────────────────────────────────────────────────
+def scrape_saramin(company, driver, seen):
+    results = []
+    kw = quote(company["search_kr"])
+    if not load(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={kw}&recruitPageCount=40"):
+        return results
+    try:
+        for item in driver.find_elements(By.CSS_SELECTOR, ".item_recruit"):
+            try:
+                a = item.find_element(By.CSS_SELECTOR, ".job_tit a")
+                title, link = a.text.strip(), a.get_attribute("href")
+                if not title or not link or link in seen:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
-                    title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
-                    job_list.append(create_job_row("사람인", company_name, title, link))
-                    local_links.add(link)
-        except Exception:
-            pass
-
-    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={company_name}+석박사"):
-        try:
-            for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
-                title_elem = job.find_element(By.CSS_SELECTOR, '.title')
-                link = title_elem.get_attribute('href')
-                if link in local_links:
+                corp = item.find_element(By.CSS_SELECTOR, ".corp_name").text
+                if not company_match(corp, company):
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
-                    job_list.append(create_job_row("잡코리아", company_name, title_elem.text.strip(), link))
-                    local_links.add(link)
-        except Exception:
-            pass
-
-    if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={company_name}%20Master%20OR%20Ph.D"):
-        try:
-            time.sleep(1)
-            for job in driver.find_elements(By.CSS_SELECTOR, '.base-card')[:5]:
-                link = job.find_element(By.CSS_SELECTOR, 'a.base-card__full-link').get_attribute('href')
-                if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
-                    continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
-                    title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
-                    job_list.append(create_job_row("LinkedIn", company_name, title, link))
-                    local_links.add(link)
-        except Exception:
-            pass
-
-    return job_list
-
-
-def scrape_official_pages(company_name, driver, local_links):
-    job_list = []
-    urls = OFFICIAL_URLS.get(company_name, [])
-    for url in urls:
-        if load_page(driver, url):
-            time.sleep(1.5)
-            found_count = 0
-            for elem in driver.find_elements(By.TAG_NAME, 'a'):
-                if found_count >= 3:
-                    break
                 try:
-                    link = elem.get_attribute('href')
-                    title = elem.text.strip()
-                    if not link or len(title) < 5 or link in local_links:
+                    loc = item.find_element(By.CSS_SELECTOR, ".work_place").text.strip()
+                except Exception:
+                    loc = "한국"
+                if utils.is_china(loc):
+                    continue
+                strength = utils.match_title(title)
+                if not strength:
+                    continue
+                results.append(utils.make_row("사람인", company["priority"], company["name"], title, loc, strength, link))
+                seen.add(link)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return results
+
+
+# ── 잡코리아 ─────────────────────────────────────────────────
+def scrape_jobkorea(company, driver, seen):
+    results = []
+    kw = quote(company["search_kr"])
+    if not load(driver, f"https://www.jobkorea.co.kr/Search/?stext={kw}"):
+        return results
+    try:
+        for item in driver.find_elements(By.CSS_SELECTOR, ".list-default .post"):
+            try:
+                a = item.find_element(By.CSS_SELECTOR, ".title")
+                title, link = a.text.strip(), a.get_attribute("href")
+                if not title or not link or link in seen:
+                    continue
+                try:
+                    corp = item.find_element(By.CSS_SELECTOR, ".name").text
+                except Exception:
+                    corp = ""
+                if corp and not company_match(corp, company):
+                    continue
+                try:
+                    loc = item.find_element(By.CSS_SELECTOR, ".loc").text.strip()
+                except Exception:
+                    loc = "한국"
+                if utils.is_china(loc):
+                    continue
+                strength = utils.match_title(title)
+                if not strength:
+                    continue
+                results.append(utils.make_row("잡코리아", company["priority"], company["name"], title, loc, strength, link))
+                seen.add(link)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return results
+
+
+# ── LinkedIn ─────────────────────────────────────────────────
+def scrape_linkedin(company, driver, seen):
+    results = []
+    kw = quote(company["search_en"])
+    if not load(driver, f"https://www.linkedin.com/jobs/search/?keywords={kw}&f_TPR=r2592000", wait=3):
+        return results
+    try:
+        for card in driver.find_elements(By.CSS_SELECTOR, ".base-card"):
+            try:
+                a = card.find_element(By.CSS_SELECTOR, "a.base-card__full-link")
+                title = card.find_element(By.CSS_SELECTOR, ".base-search-card__title").text.strip()
+                link = a.get_attribute("href").split("?")[0]
+                if not title or not link or link in seen:
+                    continue
+                try:
+                    loc = card.find_element(By.CSS_SELECTOR, ".job-search-card__location").text.strip()
+                except Exception:
+                    loc = ""
+                if utils.is_china(loc):
+                    continue
+                strength = utils.match_title(title)
+                if not strength:
+                    continue
+                results.append(utils.make_row("LinkedIn", company["priority"], company["name"], title, loc, strength, link))
+                seen.add(link)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return results
+
+
+# ── 잡다 ─────────────────────────────────────────────────────
+def scrape_jobda(company, driver, seen):
+    results = []
+    kw = quote(company["search_kr"])
+    if not load(driver, f"https://www.jobda.im/position?keyword={kw}", wait=3):
+        return results
+    try:
+        for item in driver.find_elements(By.CSS_SELECTOR, "li"):
+            try:
+                a = item.find_element(By.CSS_SELECTOR, "a")
+                link = a.get_attribute("href") or ""
+                if not link.startswith("http"):
+                    link = "https://www.jobda.im" + link
+                title = ""
+                for sel in [".position-name", ".title", "h3", "h4", "h2", "strong"]:
+                    try:
+                        title = item.find_element(By.CSS_SELECTOR, sel).text.strip()
+                        if title:
+                            break
+                    except Exception:
                         continue
-                    valid_keywords = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
-                    if any(keyword in link.lower() for keyword in valid_keywords):
-                        job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                        local_links.add(link)
-                        found_count += 1
+                if not title or len(title) < 3 or link in seen:
+                    continue
+                if not company_match(item.text, company):
+                    continue
+                strength = utils.match_title(title)
+                if not strength:
+                    continue
+                results.append(utils.make_row("잡다", company["priority"], company["name"], title, "", strength, link))
+                seen.add(link)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return results
+
+
+# ── 공식 채용 페이지 ─────────────────────────────────────────
+JOB_URL_PATTERNS = [
+    "/job", "/req", "jobid=", "/career", "/position",
+    "detail", "posting", "recruit", "/apply", "jobdetail",
+    "/opening", "/vacancy", "/opportunity",
+]
+
+def scrape_official(company, driver, seen):
+    results = []
+    for url in config.OFFICIAL_URLS.get(company["name"], []):
+        try:
+            if not load(driver, url, wait=3):
+                continue
+            for a in driver.find_elements(By.TAG_NAME, "a"):
+                try:
+                    link = a.get_attribute("href") or ""
+                    title = a.text.strip()
+                    if not link or len(title) < 4 or link in seen:
+                        continue
+                    if not any(p in link.lower() for p in JOB_URL_PATTERNS):
+                        continue
+                    if utils.is_china(title) or utils.is_china(link):
+                        continue
+                    strength = utils.match_title(title)
+                    if not strength:
+                        continue
+                    results.append(utils.make_row("공식홈페이지", company["priority"], company["name"], title, "", strength, link))
+                    seen.add(link)
                 except Exception:
                     continue
-    return job_list
+        except Exception:
+            continue
+    return results
 
 
-def scrape_company(company, existing_links_snapshot):
-    driver = make_driver()
-    local_links = set(existing_links_snapshot)
-    job_list = []
+# ── 회사 1개 처리 (스레드 워커) ──────────────────────────────
+def scrape_company(company, seen_snapshot):
+    driver = utils.make_driver()
+    seen = set(seen_snapshot)
+    jobs = []
+    name = company["name"]
     try:
-        print(f"  \u25b6 [{company}] 수집 시작...")
-        job_list.extend(scrape_portal_info(company, driver, local_links))
-        job_list.extend(scrape_official_pages(company, driver, local_links))
-        print(f"  \u2713 [{company}] {len(job_list)}개 발견")
+        print(f"  ▶ [{name}] 수집 시작...")
+        jobs += scrape_saramin(company, driver, seen)
+        jobs += scrape_jobkorea(company, driver, seen)
+        jobs += scrape_linkedin(company, driver, seen)
+        jobs += scrape_jobda(company, driver, seen)
+        jobs += scrape_official(company, driver, seen)
+        print(f"  ✓ [{name}] {len(jobs)}개 수집")
     except Exception as e:
-        print(f"  \u2717 [{company}] 오류: {e}")
+        print(f"  ✗ [{name}] 오류: {e}")
     finally:
         driver.quit()
-    return job_list
+    return jobs
 
 
+# ── 메인 ─────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("📊 [수집봇] 구글 시트 연결 중...")
-    sheet, existing_links = connect_google_sheet()
-    existing_links_snapshot = frozenset(existing_links)
+    print("📊 구글 시트 연결 중...")
+    sheet = utils.connect_sheet()
+    existing = sheet.get_all_values()
+    seen_links = {
+        row[config.COL_링크]
+        for row in existing
+        if len(row) > config.COL_링크 and row[config.COL_링크]
+    }
+    print(f"  기존 공고: {len(seen_links)}개")
 
-    print(f"\n🤖 [수집봇] {MAX_WORKERS}개 병렬 스레드로 탐색 시작 (전체 {len(TARGET_COMPANIES)}개 회사)...")
+    print(f"\n🤖 {config.MAX_WORKERS}개 병렬 스레드 | {len(config.COMPANIES)}개 회사 수집 시작...")
     all_results = []
-    dedup_lock = threading.Lock()
-    seen_links = set(existing_links)
+    lock = threading.Lock()
+    global_seen = set(seen_links)
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as ex:
         futures = {
-            executor.submit(scrape_company, company, existing_links_snapshot): company
-            for company in TARGET_COMPANIES
+            ex.submit(scrape_company, c, frozenset(seen_links)): c
+            for c in config.COMPANIES
         }
         for future in as_completed(futures):
             jobs = future.result()
-            with dedup_lock:
+            with lock:
                 for job in jobs:
-                    link = job[12]
-                    if link not in seen_links:
-                        seen_links.add(link)
+                    link = job[config.COL_링크]
+                    if link not in global_seen:
+                        global_seen.add(link)
                         all_results.append(job)
 
     if all_results:
-        print(f"\n📝 새로운 공고 {len(all_results)}개를 시트에 일괄 등록합니다.")
-        sheet.append_rows(all_results, value_input_option='USER_ENTERED')
+        print(f"\n📝 새 공고 {len(all_results)}개 저장 중...")
+        sheet.append_rows(all_results, value_input_option="USER_ENTERED")
     else:
-        print("\n✨ 새로 올라온 공고가 없습니다.")
+        print("\n✨ 새 공고 없음")
 
-    print("\n🛑 [수집봇] 안전하게 종료되었습니다.")
+    print("\n🛑 스크래퍼 완료")
