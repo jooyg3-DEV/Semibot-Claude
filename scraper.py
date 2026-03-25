@@ -29,17 +29,21 @@ TARGET_COMPANIES = [
 COMPANY_RANK = {company: i + 1 for i, company in enumerate(TARGET_COMPANIES)}
 
 OFFICIAL_URLS = {
-    "삼성전자": ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스": ["https://recruit.skhynix.com/"],  # SK 그룹 통합 포털(skcareers.com) 대신 SK하이닉스 전용 사이트
-    "ASML": ["https://asmlkorea.careerlink.kr/jobs", "https://www.asml.com/en/careers/find-your-job"],
-    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/", "https://jobs.appliedmaterials.com/"],
-    "Lam Research": ["https://lamresearch-recruit.com/jobs"],
-    "KLA": ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Micron": ["https://careers.micron.com"],
-    "TSMC": ["https://www.tsmc.com/static/english/careers/index.htm"],
-    "Intel": ["https://intel.wd1.myworkdayjobs.com/External"],
-    "NVIDIA": ["https://nvidia.eightfold.ai/careers"],
-    "AMD": ["https://careers.amd.com/careers-home/jobs"]
+    "삼성전자":          ["https://www.samsungcareers.com/hr/"],
+    "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
+    "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
+                          "https://www.asml.com/en/careers/find-your-job"],
+    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
+                          "https://jobs.appliedmaterials.com/"],
+    "Lam Research":      ["https://lamresearch-recruit.com/jobs",
+                          "https://careers.lamresearch.com/careers"],  # 글로벌 채용 사이트 추가
+    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
+    "Micron":            ["https://careers.micron.com/careers"],       # 루트 → 직무 목록 페이지로
+    "TSMC":              ["https://www.tsmc.com/english/careers/"],    # 구버전 static 페이지 → 현행 페이지로
+    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
+    "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
+    "AMD":               ["https://careers.amd.com/careers-home/jobs"],
+    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],  # OFFICIAL_URLS 누락 추가
 }
 
 def make_driver():
@@ -271,7 +275,6 @@ if __name__ == "__main__":
 
     if all_results:
         print(f"\n📝 새로운 공고 {len(all_results)}개를 시트에 일괄 등록합니다.")
-        # append_rows()로 한 번에 쓰기 (기존 N회 × sleep(1) 제거)
         sheet.append_rows(all_results, value_input_option='USER_ENTERED')
         print("\n🔃 시트 정렬 중...")
         sort_sheet(sheet)
