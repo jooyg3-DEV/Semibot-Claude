@@ -1,7 +1,7 @@
 import os
 
 SHEET_URL        = os.environ.get("SHEET_URL", "")
-SHEET_TAB        = "채용 공고 (박사)"
+SHEET_TAB        = "채용공고"
 CREDENTIALS_FILE = "credentials.json"
 
 # ── 회사 목록 ────────────────────────────────────────────────
