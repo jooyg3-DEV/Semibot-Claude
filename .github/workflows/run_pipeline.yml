@@ -1,4 +1,4 @@
-name: 0. Pipeline (수집→원문→분석)
+name: 0. Pipeline (수집→원문→분석→만료확인)
 
 on:
   schedule:
@@ -36,3 +36,8 @@ jobs:
         env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
         run: python analyzer.py
+
+      - name: 4. Checker (만료공고 확인)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python checker.py
