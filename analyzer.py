@@ -95,12 +95,11 @@ if __name__ == "__main__":
     # ── 원문 시트 → {링크: 직무설명} 딕셔너리 구축 ──────────────
     print("  원문 시트 로드 중...")
     raw_rows = sheet_raw.get_all_values()
-    # 원문 시트 컬럼: 검색일(0) 순위(1) 출처(2) 마감일(3) 상시(4) 회사(5)
-    #                공고명(6) 직무설명(7) 박사우대(8) 링크(9)
+    # 원문 시트 컬럼: 검색일(0) 순위(1) 출처(2) 마감일(3) 회사(4) 공고명(5) 직무설명(6) 링크(7)
     raw_text_by_link = {}
     for row in raw_rows[1:]:  # 헤더 제외
-        if len(row) >= 10 and row[9]:
-            raw_text_by_link[row[9].strip()] = row[7]  # 링크 → 직무설명
+        if len(row) >= 8 and row[7]:
+            raw_text_by_link[row[7].strip()] = row[6]  # 링크 → 직무설명
     print(f"  원문 {len(raw_text_by_link)}개 로드 완료")
 
     # ── 채용공고에서 분석대기 행 수집 ────────────────────────────
