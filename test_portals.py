@@ -47,8 +47,8 @@ def sep(title):
 
 
 def check_saramin(driver):
-    sep(f"사람인 | {COMPANY_KR} 반도체 (OR: 공정/장비/반도체 각각 검색)")
-    q = urllib.parse.quote(f"{COMPANY_KR} 반도체")
+    sep(f"사람인 | {COMPANY_KR} (회사명만 검색 → 결과에서 키워드 필터)")
+    q = urllib.parse.quote(COMPANY_KR)
     url = f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={q}"
     print(f"URL: {url}")
     try:
@@ -88,8 +88,8 @@ def check_saramin(driver):
 
 
 def check_jobkorea(driver):
-    sep(f"잡코리아 | {COMPANY_KR} 반도체 (OR: 공정/장비/반도체 각각 검색)")
-    q = urllib.parse.quote(f"{COMPANY_KR} 반도체")
+    sep(f"잡코리아 | {COMPANY_KR} (회사명만 검색 → 링크 패턴 추출 → 키워드 필터)")
+    q = urllib.parse.quote(COMPANY_KR)
     url = f"https://www.jobkorea.co.kr/Search/?stext={q}"
     print(f"URL: {url}")
     try:
@@ -159,7 +159,7 @@ def check_jobda(driver):
 
 
 def check_linkedin(driver):
-    sep(f"LinkedIn | {COMPANY_EN} process engineer (OR: process/equipment/semiconductor engineer 각각)")
+    sep(f"LinkedIn | {COMPANY_EN} (회사명만 검색 → 키워드 필터)")
     if not LINKEDIN_COOKIE:
         print("⚠️  LINKEDIN_COOKIE 환경변수가 없음 → 건너뜀")
         print("   실행 방법: LINKEDIN_COOKIE=xxx python test_portals.py")
@@ -173,7 +173,7 @@ def check_linkedin(driver):
             "domain": ".linkedin.com", "path": "/", "secure": True
         })
 
-        kw = urllib.parse.quote(f'"{COMPANY_EN}" process engineer')
+        kw = urllib.parse.quote(f'"{COMPANY_EN}"')
         url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD&f_TPR=r2592000"
         print(f"URL: {url}")
         driver.get(url)
@@ -209,6 +209,12 @@ def check_linkedin(driver):
                 t = e.text.strip()
                 if t:
                     print(f"    텍스트: {t[:100]!r}")
+
+        # 셀렉터 전부 0이면 body 출력으로 원인 진단
+        total_found = sum(len(driver.find_elements(By.CSS_SELECTOR, s)) for s in selectors)
+        if total_found == 0:
+            body = driver.find_element(By.TAG_NAME, "body").text
+            print(f"\n⚠️  모든 셀렉터 0개. body 앞 500자:\n{body[:500]}")
     except Exception as e:
         print(f"❌ 오류: {e}")
 
