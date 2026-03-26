@@ -1,8 +1,8 @@
 import os
 import time
+import gspread
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 from selenium import webdriver
@@ -90,22 +90,18 @@ if __name__ == "__main__":
 
         print("\n📝 처리 결과를 시트에 일괄 업데이트 중...")
         all_cells = []
+        # H(8):지원자격, I(9):채용직무, J(10):근무지, K(11):채용형태, L(12):직무설명, M(13):박사우대
         for row_num, (data, error) in results.items():
-            # H(8):지원자격, I(9):채용직무, J(10):근무지, K(11):채용형태, L(12):직무설명, M(13):박사우대
-            cell_list = sheet.range(f'H{row_num}:M{row_num}')
             if data:
-                cell_list[0].value = "원문참조"
-                cell_list[1].value = "원문참조"
-                cell_list[2].value = "원문참조"
-                cell_list[3].value = "원문참조"
-                cell_list[4].value = data["직무설명"]
-                cell_list[5].value = data["박사우대"]
+                values = ["원문참조", "원문참조", "원문참조", "원문참조",
+                          data["직무설명"], data["박사우대"]]
             else:
-                cell_list[0].value = error or "오류"
-            all_cells.extend(cell_list)
+                values = [error or "오류", "", "", "", "", ""]
+            for col_offset, value in enumerate(values):
+                all_cells.append(gspread.Cell(row_num, 8 + col_offset, value))
 
         if all_cells:
-            sheet.update_cells(all_cells)
+            sheet.update_cells(all_cells, value_input_option='USER_ENTERED')
             print(f"  ✓ {len(results)}개 행 업데이트 완료")
 
     print("\n🛑 [수집봇] 안전하게 종료되었습니다.")
