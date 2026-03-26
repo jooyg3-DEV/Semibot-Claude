@@ -145,74 +145,68 @@ def scrape_portal_info(company_name, driver, local_links):
     kr_query = COMPANY_SEARCH_KR.get(company_name, company_name)  # 한국 포털용
     en_query = COMPANY_SEARCH_EN.get(company_name, company_name)  # 글로벌 포털용
 
-    # 사람인 (회사명 + 직무키워드 — OR 방식: 공정/장비/반도체 각각 검색)
+    # 사람인 — 회사명만 검색, 결과에서 match_title 필터
     saramin_count = 0
-    for job_kw in config.PORTAL_JOB_KW_KR:
-        q = urllib.parse.quote(f"{kr_query} {job_kw}")
-            if not load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={q}"):
-                continue
-            try:
-                for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
+    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={urllib.parse.quote(kr_query)}"):
+        try:
+            for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:10]:
+                try:
                     link = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
                     if link in local_links:
                         continue
-                    if _match_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
-                        title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
-                        if match_title(title) is None or is_china(title):
-                            continue
-                        job_list.append(create_job_row("사람인", company_name, title, link))
-                        local_links.add(link)
-                        saramin_count += 1
-            except Exception:
-                pass
+                    if not _match_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
+                        continue
+                    title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
+                    if match_title(title) is None or is_china(title):
+                        continue
+                    job_list.append(create_job_row("사람인", company_name, title, link))
+                    local_links.add(link)
+                    saramin_count += 1
+                except Exception:
+                    continue
+        except Exception:
+            pass
     print(f"      [사람인] {company_name}: {saramin_count}개")
 
-    # 잡코리아 (회사명 + 직무키워드 — OR 방식: 공정/장비/반도체 각각 검색)
+    # 잡코리아 — 회사명만 검색, 링크 패턴 추출 후 match_title 필터
     jobkorea_count = 0
-    for job_kw in config.PORTAL_JOB_KW_KR:
-        q = urllib.parse.quote(f"{kr_query} {job_kw}")
-            if not load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={q}"):
-                continue
-            try:
-                time.sleep(1)
-                # 잡코리아 공고 링크 패턴으로 추출 (셀렉터 변경에 강건)
-                for a in driver.find_elements(By.TAG_NAME, 'a'):
-                    try:
-                        link = a.get_attribute('href') or ''
-                        if not link or link in local_links:
-                            continue
-                        # 잡코리아 공고 URL 패턴
-                        if not any(p in link for p in ['/Recruit/GI.Recruit', '/recruit/', 'jobkorea.co.kr/Job/']):
-                            continue
-                        title = a.text.strip()
-                        if len(title) < 5:
-                            # 부모 카드에서 제목 추출 시도
-                            title = driver.execute_script("""
-                                var el = arguments[0];
-                                var card = el.closest('li, tr, article, div');
-                                if (!card) return '';
-                                var h = card.querySelector('strong, b, [class*=tit], [class*=title]');
-                                return h ? h.innerText.trim() : '';
-                            """, a) or ''
-                        if len(title) < 5:
-                            continue
-                        # 카드 전체 텍스트에서 회사명 매칭
-                        card_text = driver.execute_script("""
+    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={urllib.parse.quote(kr_query)}"):
+        try:
+            time.sleep(1)
+            for a in driver.find_elements(By.TAG_NAME, 'a'):
+                try:
+                    link = a.get_attribute('href') or ''
+                    if not link or link in local_links:
+                        continue
+                    if not any(p in link for p in ['/Recruit/GI.Recruit', '/recruit/', 'jobkorea.co.kr/Job/']):
+                        continue
+                    title = a.text.strip()
+                    if len(title) < 5:
+                        title = driver.execute_script("""
                             var el = arguments[0];
                             var card = el.closest('li, tr, article, div');
-                            return card ? card.innerText : '';
+                            if (!card) return '';
+                            var h = card.querySelector('strong, b, [class*=tit], [class*=title]');
+                            return h ? h.innerText.trim() : '';
                         """, a) or ''
-                        if not _match_company(card_text, company_name):
-                            continue
-                        if match_title(title) is None or is_china(title):
-                            continue
-                        job_list.append(create_job_row("잡코리아", company_name, title, link))
-                        local_links.add(link)
-                        jobkorea_count += 1
-                    except Exception:
+                    if len(title) < 5:
                         continue
-            except Exception:
-                pass
+                    card_text = driver.execute_script("""
+                        var el = arguments[0];
+                        var card = el.closest('li, tr, article, div');
+                        return card ? card.innerText : '';
+                    """, a) or ''
+                    if not _match_company(card_text, company_name):
+                        continue
+                    if match_title(title) is None or is_china(title):
+                        continue
+                    job_list.append(create_job_row("잡코리아", company_name, title, link))
+                    local_links.add(link)
+                    jobkorea_count += 1
+                except Exception:
+                    continue
+        except Exception:
+            pass
     print(f"      [잡코리아] {company_name}: {jobkorea_count}개")
 
     # LinkedIn (쿠키 인증, 회사명 + 직무키워드 + 석사/박사)
@@ -315,9 +309,9 @@ def scrape_portal_info(company_name, driver, local_links):
             driver.add_cookie({"name": "li_at", "value": LINKEDIN_COOKIE, "domain": ".linkedin.com",
                                "path": "/", "secure": True})
             cookie_expired = False
-            # OR 방식: 직무키워드별 각각 검색 (학위 제거 → 더 넓은 결과)
-            for job_kw in config.PORTAL_JOB_KW_EN:
-                li_kw = urllib.parse.quote(f'"{en_query}" {job_kw}')
+            # 영문 회사명으로 semiconductor / engineer 분리 검색
+            for kw_suffix in ["semiconductor", "engineer"]:
+                li_kw = urllib.parse.quote(f'"{en_query}" {kw_suffix}')
                 li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD&f_TPR=r2592000"
                 driver.get(li_url)
                 time.sleep(6)  # LinkedIn SPA 렌더링 충분히 대기
@@ -333,8 +327,6 @@ def scrape_portal_info(company_name, driver, local_links):
                 except Exception:
                     pass
                 linkedin_count += _collect_li_cards(driver, company_name, local_links, job_list)
-            if cookie_expired:
-                pass  # 루프 종료됨
         except Exception as e:
             print(f"      [LinkedIn] {company_name}: 오류 - {e}")
     print(f"      [LinkedIn] {company_name}: {linkedin_count}개")
