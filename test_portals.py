@@ -14,12 +14,25 @@ from selenium.webdriver.common.by import By
 
 # 테스트할 회사 (인자로 지정 가능)
 COMPANY_KR = sys.argv[1] if len(sys.argv) > 1 else "삼성전자"
+# LinkedIn 등 영문 검색용 — 한국어 이름도 매핑
 COMPANY_EN = {
     "삼성전자": "Samsung Electronics",
     "SK하이닉스": "SK Hynix",
     "ASML": "ASML",
     "Applied Materials": "Applied Materials",
+    "어플라이드머티리얼즈": "Applied Materials",
+    "어플라이드머터리얼즈": "Applied Materials",
     "KLA": "KLA",
+    "TSMC": "TSMC",
+    "인텔": "Intel",
+    "Intel": "Intel",
+    "마이크론": "Micron Technology",
+    "Micron": "Micron Technology",
+    "램리서치": "Lam Research",
+    "Lam Research": "Lam Research",
+    "Tokyo Electron": "Tokyo Electron",
+    "NVIDIA": "NVIDIA",
+    "AMD": "AMD",
 }.get(COMPANY_KR, COMPANY_KR)
 
 LINKEDIN_COOKIE = os.environ.get("LINKEDIN_COOKIE", "")
@@ -159,7 +172,7 @@ def check_jobda(driver):
 
 
 def check_linkedin(driver):
-    sep(f"LinkedIn | {COMPANY_EN} process engineer (OR: process/equipment/semiconductor engineer 각각)")
+    sep(f"LinkedIn | {COMPANY_EN} (영문 검색: semiconductor / engineer 분리)")
     if not LINKEDIN_COOKIE:
         print("⚠️  LINKEDIN_COOKIE 환경변수가 없음 → 건너뜀")
         print("   실행 방법: LINKEDIN_COOKIE=xxx python test_portals.py")
@@ -173,42 +186,47 @@ def check_linkedin(driver):
             "domain": ".linkedin.com", "path": "/", "secure": True
         })
 
-        kw = urllib.parse.quote(f'"{COMPANY_EN}" process engineer')
-        url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD&f_TPR=r2592000"
-        print(f"URL: {url}")
-        driver.get(url)
-        time.sleep(6)
-        try:
-            driver.execute_script("window.scrollTo(0, 600);")
-            time.sleep(1.5)
-        except Exception:
-            pass
-        print(f"페이지 제목: {driver.title}")
-        cur = driver.current_url
-        print(f"현재 URL: {cur}")
+        # semiconductor와 engineer 분리 검색
+        for kw_suffix in ["semiconductor", "engineer"]:
+            kw = urllib.parse.quote(f'"{COMPANY_EN}" {kw_suffix}')
+            url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD&f_TPR=r2592000"
+            print(f"\n[검색] {kw_suffix} → URL: {url}")
+            driver.get(url)
+            time.sleep(6)
+            cur = driver.current_url
+            if "login" in cur or "authwall" in cur or "signup" in cur:
+                print("❌ 쿠키 만료 또는 인증 실패")
+                return
+            try:
+                driver.execute_script("window.scrollTo(0, 600);")
+                time.sleep(1.5)
+            except Exception:
+                pass
 
-        if "login" in cur or "authwall" in cur or "signup" in cur:
-            print("❌ 쿠키 만료 또는 인증 실패 → 로그인 페이지로 리디렉션됨")
-            return
+            print(f"  페이지 제목: {driver.title}")
+            print(f"  현재 URL: {driver.current_url}")
+            print(f"  ✓ 쿠키 인증 성공")
 
-        print("✓ 쿠키 인증 성공 (로그인 페이지 아님)")
+            selectors = {
+                "li.jobs-search-results__list-item": "2024+ 검색결과 리스트",
+                ".jobs-search-results-list li": "검색결과(ul>li)",
+                "[data-occludable-job-id]": "job-id 속성",
+                ".job-card-container": "job-card-container(구)",
+                ".scaffold-layout__list-item": "scaffold 리스트(구)",
+                ".base-card": "base-card(구)",
+            }
+            for sel, desc in selectors.items():
+                elems = driver.find_elements(By.CSS_SELECTOR, sel)
+                print(f"    [{desc}] '{sel}' → {len(elems)}개")
+                for e in elems[:2]:
+                    t = e.text.strip()
+                    if t:
+                        print(f"      텍스트: {t[:100]!r}")
 
-        selectors = {
-            "li.jobs-search-results__list-item": "2024+ 검색결과 리스트",
-            ".jobs-search-results-list li": "검색결과 리스트(ul>li)",
-            "[data-occludable-job-id]": "job-id 속성",
-            ".job-card-container": "job-card-container(구)",
-            ".jobs-search__results-list > li": "검색결과 리스트(구)",
-            ".scaffold-layout__list-item": "scaffold 리스트(구)",
-            ".base-card": "base-card(구)",
-        }
-        for sel, desc in selectors.items():
-            elems = driver.find_elements(By.CSS_SELECTOR, sel)
-            print(f"  [{desc}] '{sel}' → {len(elems)}개 발견")
-            for e in elems[:2]:
-                t = e.text.strip()
-                if t:
-                    print(f"    텍스트: {t[:100]!r}")
+            total = sum(len(driver.find_elements(By.CSS_SELECTOR, s)) for s in selectors)
+            if total == 0:
+                body = driver.find_element(By.TAG_NAME, "body").text
+                print(f"  ⚠️  셀렉터 모두 0. body 앞 300자:\n{body[:300]}")
     except Exception as e:
         print(f"❌ 오류: {e}")
 
