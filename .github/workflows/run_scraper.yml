@@ -21,4 +21,5 @@ jobs:
         run: echo "$GCP_CREDENTIALS" > credentials.json
       - env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
+          LINKEDIN_COOKIE: ${{ secrets.LINKEDIN_COOKIE }}
         run: python scraper.py
