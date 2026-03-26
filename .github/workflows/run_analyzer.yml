@@ -1,12 +1,10 @@
-name: 2. Job Summarizer (원문수집봇)
+name: 3. Job Analyzer (분석봇)
 
 on:
-  schedule:
-    - cron: '0 */2 * * *'  # 매 2시간마다 실행
   workflow_dispatch:
 
 jobs:
-  summarize:
+  analyze:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -21,4 +19,4 @@ jobs:
         run: echo "$GCP_CREDENTIALS" > credentials.json
       - env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
-        run: python summarizer.py
+        run: python analyzer.py
