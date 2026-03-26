@@ -177,7 +177,12 @@ def check_linkedin(driver):
         url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD"
         print(f"URL: {url}")
         driver.get(url)
-        time.sleep(4)
+        time.sleep(6)
+        try:
+            driver.execute_script("window.scrollTo(0, 600);")
+            time.sleep(1.5)
+        except Exception:
+            pass
         print(f"페이지 제목: {driver.title}")
         cur = driver.current_url
         print(f"현재 URL: {cur}")
@@ -189,12 +194,13 @@ def check_linkedin(driver):
         print("✓ 쿠키 인증 성공 (로그인 페이지 아님)")
 
         selectors = {
-            ".job-card-container": "job-card-container(현재 사용중)",
-            ".jobs-search__results-list > li": "검색결과 리스트",
-            ".scaffold-layout__list-item": "scaffold 리스트",
-            ".base-card": "base-card",
-            ".job-search-card": "job-search-card",
+            "li.jobs-search-results__list-item": "2024+ 검색결과 리스트",
+            ".jobs-search-results-list li": "검색결과 리스트(ul>li)",
             "[data-occludable-job-id]": "job-id 속성",
+            ".job-card-container": "job-card-container(구)",
+            ".jobs-search__results-list > li": "검색결과 리스트(구)",
+            ".scaffold-layout__list-item": "scaffold 리스트(구)",
+            ".base-card": "base-card(구)",
         }
         for sel, desc in selectors.items():
             elems = driver.find_elements(By.CSS_SELECTOR, sel)
