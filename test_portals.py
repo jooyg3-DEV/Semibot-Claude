@@ -47,8 +47,8 @@ def sep(title):
 
 
 def check_saramin(driver):
-    sep(f"사람인 | {COMPANY_KR} 석사 공정")
-    q = urllib.parse.quote(f"{COMPANY_KR} 석사 공정")
+    sep(f"사람인 | {COMPANY_KR} 반도체 (OR: 공정/장비/반도체 각각 검색)")
+    q = urllib.parse.quote(f"{COMPANY_KR} 반도체")
     url = f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={q}"
     print(f"URL: {url}")
     try:
@@ -88,8 +88,8 @@ def check_saramin(driver):
 
 
 def check_jobkorea(driver):
-    sep(f"잡코리아 | {COMPANY_KR} 석사 공정")
-    q = urllib.parse.quote(f"{COMPANY_KR} 석사 공정")
+    sep(f"잡코리아 | {COMPANY_KR} 반도체 (OR: 공정/장비/반도체 각각 검색)")
+    q = urllib.parse.quote(f"{COMPANY_KR} 반도체")
     url = f"https://www.jobkorea.co.kr/Search/?stext={q}"
     print(f"URL: {url}")
     try:
@@ -122,8 +122,8 @@ def check_jobkorea(driver):
 
 
 def check_jobda(driver):
-    sep(f"잡다 | {COMPANY_KR} 석사 공정")
-    q = urllib.parse.quote(f"{COMPANY_KR} 석사 공정")
+    sep(f"잡다 | {COMPANY_KR} (회사명만 검색 후 회사 매칭)")
+    q = urllib.parse.quote(COMPANY_KR)
     url = f"https://www.jobda.im/position?keyword={q}"
     print(f"URL: {url}")
     try:
@@ -159,7 +159,7 @@ def check_jobda(driver):
 
 
 def check_linkedin(driver):
-    sep(f"LinkedIn | {COMPANY_EN} master process engineer")
+    sep(f"LinkedIn | {COMPANY_EN} process engineer (OR: process/equipment/semiconductor engineer 각각)")
     if not LINKEDIN_COOKIE:
         print("⚠️  LINKEDIN_COOKIE 환경변수가 없음 → 건너뜀")
         print("   실행 방법: LINKEDIN_COOKIE=xxx python test_portals.py")
@@ -173,8 +173,8 @@ def check_linkedin(driver):
             "domain": ".linkedin.com", "path": "/", "secure": True
         })
 
-        kw = urllib.parse.quote(f'"{COMPANY_EN}" "process engineer" master semiconductor')
-        url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD"
+        kw = urllib.parse.quote(f'"{COMPANY_EN}" process engineer')
+        url = f"https://www.linkedin.com/jobs/search/?keywords={kw}&sortBy=DD&f_TPR=r2592000"
         print(f"URL: {url}")
         driver.get(url)
         time.sleep(6)

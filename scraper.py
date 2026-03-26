@@ -145,11 +145,10 @@ def scrape_portal_info(company_name, driver, local_links):
     kr_query = COMPANY_SEARCH_KR.get(company_name, company_name)  # 한국 포털용
     en_query = COMPANY_SEARCH_EN.get(company_name, company_name)  # 글로벌 포털용
 
-    # 사람인 (회사명 + 석사/박사 + 직무키워드)
+    # 사람인 (회사명 + 직무키워드 — OR 방식: 공정/장비/반도체 각각 검색)
     saramin_count = 0
-    for degree in ["석사", "박사"]:
-        for job_kw in config.PORTAL_JOB_KW_KR:
-            q = urllib.parse.quote(f"{kr_query} {degree} {job_kw}")
+    for job_kw in config.PORTAL_JOB_KW_KR:
+        q = urllib.parse.quote(f"{kr_query} {job_kw}")
             if not load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={q}"):
                 continue
             try:
@@ -168,11 +167,10 @@ def scrape_portal_info(company_name, driver, local_links):
                 pass
     print(f"      [사람인] {company_name}: {saramin_count}개")
 
-    # 잡코리아 (회사명 + 석사/박사 + 직무키워드) — 링크 기반 추출 (셀렉터 변경 대응)
+    # 잡코리아 (회사명 + 직무키워드 — OR 방식: 공정/장비/반도체 각각 검색)
     jobkorea_count = 0
-    for degree in ["석사", "박사"]:
-        for job_kw in config.PORTAL_JOB_KW_KR:
-            q = urllib.parse.quote(f"{kr_query} {degree} {job_kw}")
+    for job_kw in config.PORTAL_JOB_KW_KR:
+        q = urllib.parse.quote(f"{kr_query} {job_kw}")
             if not load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={q}"):
                 continue
             try:
@@ -317,26 +315,26 @@ def scrape_portal_info(company_name, driver, local_links):
             driver.add_cookie({"name": "li_at", "value": LINKEDIN_COOKIE, "domain": ".linkedin.com",
                                "path": "/", "secure": True})
             cookie_expired = False
-            for degree in ["master", "phd"]:
-                for job_kw in config.PORTAL_JOB_KW_EN:
-                    li_kw = urllib.parse.quote(f'"{en_query}" "{job_kw}" {degree} semiconductor')
-                    li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD&f_TPR=r604800"
-                    driver.get(li_url)
-                    time.sleep(6)  # LinkedIn SPA 렌더링 충분히 대기
-                    cur = driver.current_url
-                    if "login" in cur or "authwall" in cur or "signup" in cur:
-                        print(f"      [LinkedIn] {company_name}: 쿠키 만료 - 건너뜀")
-                        cookie_expired = True
-                        break
-                    # 추가 스크롤로 lazy-load 트리거
-                    try:
-                        driver.execute_script("window.scrollTo(0, 600);")
-                        time.sleep(1.5)
-                    except Exception:
-                        pass
-                    linkedin_count += _collect_li_cards(driver, company_name, local_links, job_list)
-                if cookie_expired:
+            # OR 방식: 직무키워드별 각각 검색 (학위 제거 → 더 넓은 결과)
+            for job_kw in config.PORTAL_JOB_KW_EN:
+                li_kw = urllib.parse.quote(f'"{en_query}" {job_kw}')
+                li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD&f_TPR=r2592000"
+                driver.get(li_url)
+                time.sleep(6)  # LinkedIn SPA 렌더링 충분히 대기
+                cur = driver.current_url
+                if "login" in cur or "authwall" in cur or "signup" in cur:
+                    print(f"      [LinkedIn] {company_name}: 쿠키 만료 - 건너뜀")
+                    cookie_expired = True
                     break
+                # 추가 스크롤로 lazy-load 트리거
+                try:
+                    driver.execute_script("window.scrollTo(0, 600);")
+                    time.sleep(1.5)
+                except Exception:
+                    pass
+                linkedin_count += _collect_li_cards(driver, company_name, local_links, job_list)
+            if cookie_expired:
+                pass  # 루프 종료됨
         except Exception as e:
             print(f"      [LinkedIn] {company_name}: 오류 - {e}")
     print(f"      [LinkedIn] {company_name}: {linkedin_count}개")
