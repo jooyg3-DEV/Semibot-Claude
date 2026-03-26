@@ -1,0 +1,26 @@
+name: 🔍 포털 스크래핑 진단
+
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: '테스트할 회사명 (예: 삼성전자, SK하이닉스, ASML)'
+        required: false
+        default: '삼성전자'
+
+jobs:
+  test-portals:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+
+      - name: 포털 스크래핑 진단
+        env:
+          LINKEDIN_COOKIE: ${{ secrets.LINKEDIN_COOKIE }}
+        run: python test_portals.py "${{ github.event.inputs.company }}"
