@@ -63,19 +63,25 @@ STATUS_DONE    = "수집완료"
 STATUS_ERROR   = "오류"
 
 # ── 직무 필터 키워드 ─────────────────────────────────────────
-STRONG_KR = ["공정", "증착", "식각", "리소그래피", "세정", "계측", "확산", "이온주입", "산화", "cmp"]
-STRONG_EN = ["process", "etch", "deposition", "lithograph", "cmp", "cvd", "pvd", "ald",
-             "implant", "diffusion", "clean", "metrology", "oxidation", "fab"]
+STRONG_KR = [
+    "공정", "증착", "식각", "리소그래피", "세정", "계측", "확산", "이온주입", "산화", "cmp",
+    "연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "수율", "반도체", "석사", "신입",
+]
+STRONG_EN = [
+    "process", "etch", "deposition", "lithograph", "cmp", "cvd", "pvd", "ald",
+    "implant", "diffusion", "clean", "metrology", "oxidation", "fab",
+    "engineer", "r&d", "research", "scientist", "technology", "material",
+    "analysis", "yield", "device", "semiconductor",
+    "master", "master's", "masters", "fresh graduate", "entry level", "new graduate",
+]
 
-WEAK_KR = ["연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "통합", "수율", "반도체",
-           "석사", "신입"]
-WEAK_EN = ["engineer", "r&d", "research", "scientist", "technology", "material",
-           "analysis", "yield", "integration", "device", "semiconductor",
-           "master", "master's", "masters", "fresh graduate", "entry level", "new graduate"]
-
-EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발", "설치", "인턴", "인공지능", " it ", "알고리즘", "안전", "광학"]
+EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발",
+              "설치", "인턴", "인공지능", "IT", "알고리즘", "안전", "광학"]
+              # IT: 대문자로 정보기술 직군 제외 (대명사 'it'와 구분)
 EXCLUDE_EN = ["sales", "marketing", " hr ", "finance", "legal", "software", "procurement",
-              "logistics", "supply chain", "accounting", "install", "intern", "ai ", " it ", "algorithm", "safe", "optic"]
+              "logistics", "supply chain", "accounting",
+              "install", "intern", " ai ", " it ", "algorithm", "safe", "optic"]
+              # " ai "/" it ": 공백으로 감싸 대명사·복합어 오매칭 방지
 
 # ── 중국 지역 제외 키워드 ────────────────────────────────────
 CHINA_KEYWORDS = [
