@@ -30,23 +30,37 @@ OFFICIAL_URLS = {
                           "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
                           "https://jobs.appliedmaterials.com/"],
-    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search?q=process+engineer+master",
-                          "https://kla.wd1.myworkdayjobs.com/Search?q=process+engineer+phd"],
-    "TSMC":              ["https://careers.tsmc.com/careers?q=process+engineer+master",
-                          "https://careers.tsmc.com/careers?q=process+engineer+phd"],
-    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External?q=process+engineer+master",
-                          "https://intel.wd1.myworkdayjobs.com/External?q=process+engineer+phd"],
-    "Micron":            ["https://careers.micron.com/careers?q=process+engineer+master",
-                          "https://careers.micron.com/careers?q=process+engineer+phd"],
+    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search?q=master+process+engineer",
+                          "https://kla.wd1.myworkdayjobs.com/Search?q=phd+process+engineer",
+                          "https://kla.wd1.myworkdayjobs.com/Search?q=master+equipment+engineer",
+                          "https://kla.wd1.myworkdayjobs.com/Search?q=phd+equipment+engineer"],
+    "TSMC":              ["https://careers.tsmc.com/careers?q=master+process+engineer",
+                          "https://careers.tsmc.com/careers?q=phd+process+engineer",
+                          "https://careers.tsmc.com/careers?q=master+equipment+engineer",
+                          "https://careers.tsmc.com/careers?q=phd+equipment+engineer"],
+    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External?q=master+process+engineer",
+                          "https://intel.wd1.myworkdayjobs.com/External?q=phd+process+engineer",
+                          "https://intel.wd1.myworkdayjobs.com/External?q=master+equipment+engineer",
+                          "https://intel.wd1.myworkdayjobs.com/External?q=phd+equipment+engineer"],
+    "Micron":            ["https://careers.micron.com/careers?q=master+process+engineer",
+                          "https://careers.micron.com/careers?q=phd+process+engineer",
+                          "https://careers.micron.com/careers?q=master+equipment+engineer",
+                          "https://careers.micron.com/careers?q=phd+equipment+engineer"],
     "Lam Research":      ["https://lamresearch-recruit.com/jobs",
-                          "https://careers.lamresearch.com/careers?q=process+engineer+master",
-                          "https://careers.lamresearch.com/careers?q=process+engineer+phd"],
+                          "https://careers.lamresearch.com/careers?q=master+process+engineer",
+                          "https://careers.lamresearch.com/careers?q=phd+process+engineer",
+                          "https://careers.lamresearch.com/careers?q=master+equipment+engineer",
+                          "https://careers.lamresearch.com/careers?q=phd+equipment+engineer"],
     "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career",
                           "https://www.tel.com/careers/"],
-    "NVIDIA":            ["https://nvidia.eightfold.ai/careers?query=process+engineer+master",
-                          "https://nvidia.eightfold.ai/careers?query=process+engineer+phd"],
-    "AMD":               ["https://careers.amd.com/careers-home/jobs?q=process+engineer+master",
-                          "https://careers.amd.com/careers-home/jobs?q=process+engineer+phd"],
+    "NVIDIA":            ["https://nvidia.eightfold.ai/careers?query=master+process+engineer",
+                          "https://nvidia.eightfold.ai/careers?query=phd+process+engineer",
+                          "https://nvidia.eightfold.ai/careers?query=master+equipment+engineer",
+                          "https://nvidia.eightfold.ai/careers?query=phd+equipment+engineer"],
+    "AMD":               ["https://careers.amd.com/careers-home/jobs?q=master+process+engineer",
+                          "https://careers.amd.com/careers-home/jobs?q=phd+process+engineer",
+                          "https://careers.amd.com/careers-home/jobs?q=master+equipment+engineer",
+                          "https://careers.amd.com/careers-home/jobs?q=phd+equipment+engineer"],
 }
 
 # ── 시트 컬럼 인덱스 (0-based) ───────────────────────────────
@@ -136,22 +150,26 @@ PHD_KEYWORDS = [
 
 # ── 공식 채용 페이지 키워드 검색 쿼리 ────────────────────────
 # 각 사이트 검색창에 순서대로 입력, 쿼리별로 최대 5건 수집
+# ── 포털 직무 검색 키워드 ─────────────────────────────────────
+# 회사명 + 석사/박사 + 직무키워드 조합으로 포털 검색
+PORTAL_JOB_KW_KR = ["공정", "장비"]           # 사람인/잡코리아/잡다
+PORTAL_JOB_KW_EN = ["process engineer",
+                     "equipment engineer"]     # LinkedIn
+
 KOREAN_COMPANY_NAMES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
 
 SEARCH_QUERIES_KR = [
-    "반도체 공정 석사",
-    "반도체 공정 박사",
-    "엔지니어 연구원 석사",
-    "엔지니어 연구원 박사",
+    "석사 공정",
+    "박사 공정",
+    "석사 장비",
+    "박사 장비",
 ]
 
 SEARCH_QUERIES_EN = [
-    "process engineer master",
-    "process engineer phd",
-    "etch deposition CMP metrology master",
-    "etch deposition CMP metrology phd",
-    "application engineer semiconductor",
-    "research engineer semiconductor",
+    "master process engineer",
+    "phd process engineer",
+    "master equipment engineer",
+    "phd equipment engineer",
 ]
 
 # ── 실행 설정 ────────────────────────────────────────────────
