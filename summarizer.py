@@ -75,8 +75,7 @@ if __name__ == "__main__":
     raw_header = sheet_raw.row_values(1)
     if not raw_header or raw_header[0] != "검색일":
         sheet_raw.insert_row(
-            ["검색일", "순위", "출처", "마감일", "상시", "회사", "공고명",
-             "직무설명", "박사우대", "링크"],
+            ["검색일", "순위", "출처", "마감일", "회사", "공고명", "직무설명", "링크"],
             index=1
         )
         print("  원문 시트 헤더 초기화 완료")
@@ -117,16 +116,14 @@ if __name__ == "__main__":
             row_data, data, error = results[row_num]
             if data:
                 raw_rows.append([
-                    row_data[0],          # 검색일
-                    row_data[1],          # 순위
-                    row_data[2],          # 출처
-                    row_data[3],          # 마감일
-                    row_data[4],          # 상시
-                    row_data[5],          # 회사
-                    row_data[6],          # 공고명
-                    data["text"],         # 직무설명 (원문)
-                    "있음" if data["has_phd"] else "없음",  # 박사우대
-                    row_data[12],         # 링크
+                    row_data[0],   # 검색일
+                    row_data[1],   # 순위
+                    row_data[2],   # 출처
+                    row_data[3],   # 마감일
+                    row_data[5],   # 회사
+                    row_data[6],   # 공고명
+                    data["text"],  # 직무설명 (원문)
+                    row_data[12],  # 링크
                 ])
         if raw_rows:
             sheet_raw.append_rows(raw_rows, value_input_option='USER_ENTERED')
