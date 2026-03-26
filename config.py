@@ -152,9 +152,10 @@ PHD_KEYWORDS = [
 # 각 사이트 검색창에 순서대로 입력, 쿼리별로 최대 5건 수집
 # ── 포털 직무 검색 키워드 ─────────────────────────────────────
 # 회사명 + 석사/박사 + 직무키워드 조합으로 포털 검색
-PORTAL_JOB_KW_KR = ["공정", "장비"]           # 사람인/잡코리아/잡다
+PORTAL_JOB_KW_KR = ["공정", "장비", "반도체"]    # 사람인/잡코리아/잡다
 PORTAL_JOB_KW_EN = ["process engineer",
-                     "equipment engineer"]     # LinkedIn
+                     "equipment engineer",
+                     "semiconductor engineer"]   # LinkedIn
 
 KOREAN_COMPANY_NAMES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
 
