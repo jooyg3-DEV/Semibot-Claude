@@ -63,25 +63,41 @@ STATUS_DONE    = "수집완료"
 STATUS_ERROR   = "오류"
 
 # ── 직무 필터 키워드 ─────────────────────────────────────────
-STRONG_KR = ["공정", "증착", "식각", "리소그래피", "세정", "계측", "확산", "이온주입", "산화", "cmp"]
-STRONG_EN = ["process", "etch", "deposition", "lithograph", "cmp", "cvd", "pvd", "ald",
-             "implant", "diffusion", "clean", "metrology", "oxidation", "fab"]
+STRONG_KR = [
+    "공정", "증착", "식각", "리소그래피", "세정", "계측", "확산", "이온주입", "산화", "cmp",
+    "연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "수율", "반도체", "석사", "신입",
+]
+STRONG_EN = [
+    "process", "etch", "deposition", "lithograph", "cmp", "cvd", "pvd", "ald",
+    "implant", "diffusion", "clean", "metrology", "oxidation", "fab",
+    "engineer", "r&d", "research", "scientist", "technology", "material",
+    "analysis", "yield", "device", "semiconductor",
+    "master", "master's", "masters", "fresh graduate", "entry level", "new graduate",
+]
 
-WEAK_KR = ["연구원", "엔지니어", "개발", "기술", "소재", "재료", "분석", "통합", "수율", "반도체",
-           "석사", "신입"]
-WEAK_EN = ["engineer", "r&d", "research", "scientist", "technology", "material",
-           "analysis", "yield", "integration", "device", "semiconductor",
-           "master", "master's", "masters", "fresh graduate", "entry level", "new graduate"]
-
-EXCLUDE_KR = ["영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발"]
-EXCLUDE_EN = ["sales", "marketing", " hr ", "finance", "legal", "software", "procurement",
-              "logistics", "supply chain", "accounting"]
+EXCLUDE_KR = [
+    "영업", "마케팅", "인사", "재무", "법무", "총무", "구매", "물류", "소프트웨어", "sw개발",
+    "설치", "인턴", "인공지능", "알고리즘", "안전", "광학", "IT",  # IT = 정보기술 직군 제외
+]
+EXCLUDE_EN = [
+    "sales", "marketing", " hr ", "finance", "legal", "software", "procurement",
+    "logistics", "supply chain", "accounting",
+    "install", "intern", " ai ", " it ", "algorithm", "safe", "optic",
+    # " ai ", " it " : 공백으로 감싸 대명사(it)·복합어(email, train 등) 오매칭 방지
+]
 
 # ── 중국 지역 제외 키워드 ────────────────────────────────────
 CHINA_KEYWORDS = [
-    "중국", "china", "beijing", "shanghai", "shenzhen", "guangzhou",
-    "chengdu", "wuhan", "nanjing", "suzhou", "hangzhou",
-    "베이징", "상하이", "선전", "광저우", "청두", "시안", "xian",
+    # 국가
+    "중국", "china",
+    # 주요 도시 (영문)
+    "beijing", "shanghai", "shenzhen", "guangzhou", "chengdu",
+    "wuhan", "nanjing", "suzhou", "hangzhou", "xian",
+    "tianjin", "chongqing", "hefei", "xiamen", "qingdao",
+    "zhengzhou", "wuxi", "dongguan", "dalian", "kunshan",
+    # 주요 도시 (한국어)
+    "베이징", "상하이", "선전", "광저우", "청두", "시안",
+    "텐진", "충칭", "허페이", "샤먼",
 ]
 
 # ── 박사우대 감지 키워드 ─────────────────────────────────────
@@ -105,7 +121,10 @@ SEARCH_QUERIES_EN = [
     "etch deposition lithography CMP metrology",
     "semiconductor R&D entry level",
     "field service engineer semiconductor",
-    "application engineer",
+    "application engineer semiconductor",
+    "field application engineer semiconductor",
+    "product support engineer semiconductor",
+    "research engineer semiconductor",
 ]
 
 # ── 실행 설정 ────────────────────────────────────────────────
