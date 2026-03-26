@@ -29,7 +29,7 @@ def make_driver():
     options.add_argument('--blink-settings=imagesEnabled=false')
     options.add_argument('--disable-extensions')
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(15)
+    driver.set_page_load_timeout(30)  # Workday/SPA 페이지 대비 (기존 15s)
     return driver
 
 
@@ -49,10 +49,16 @@ def process_single_job(task):
     link    = row_data[12]  # M열 (0-based) — 13열 구조
     print(f"  ▶ [{company}] 원문 수집 중... (행: {row_num})")
 
+    # Workday/Eightfold SPA는 JS 렌더링에 추가 시간 필요
+    _SPA_DOMAINS = ('workdayjobs.com', 'careers.amd.com', 'careers.micron.com',
+                    'careers.tsmc.com', 'eightfold.ai', 'careers.lamresearch.com')
+
     driver = make_driver()
     try:
         driver.get(link)
         time.sleep(3)
+        if any(d in link for d in _SPA_DOMAINS):
+            time.sleep(4)  # SPA 추가 대기
         text = driver.find_element(By.TAG_NAME, "body").text.strip()
     except Exception:
         return row_num, row_data, None, "페이지 접속 불가"

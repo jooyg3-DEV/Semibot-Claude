@@ -30,16 +30,23 @@ OFFICIAL_URLS = {
                           "https://www.asml.com/en/careers/find-your-job"],
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
                           "https://jobs.appliedmaterials.com/"],
-    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "TSMC":              ["https://careers.tsmc.com/careers"],
-    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
-    "Micron":            ["https://careers.micron.com/careers"],
+    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search?q=process+engineer+master",
+                          "https://kla.wd1.myworkdayjobs.com/Search?q=process+engineer+phd"],
+    "TSMC":              ["https://careers.tsmc.com/careers?q=process+engineer+master",
+                          "https://careers.tsmc.com/careers?q=process+engineer+phd"],
+    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External?q=process+engineer+master",
+                          "https://intel.wd1.myworkdayjobs.com/External?q=process+engineer+phd"],
+    "Micron":            ["https://careers.micron.com/careers?q=process+engineer+master",
+                          "https://careers.micron.com/careers?q=process+engineer+phd"],
     "Lam Research":      ["https://lamresearch-recruit.com/jobs",
-                          "https://careers.lamresearch.com/careers"],
+                          "https://careers.lamresearch.com/careers?q=process+engineer+master",
+                          "https://careers.lamresearch.com/careers?q=process+engineer+phd"],
     "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career",
                           "https://www.tel.com/careers/"],
-    "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
-    "AMD":               ["https://careers.amd.com/careers-home/jobs"],
+    "NVIDIA":            ["https://nvidia.eightfold.ai/careers?query=process+engineer+master",
+                          "https://nvidia.eightfold.ai/careers?query=process+engineer+phd"],
+    "AMD":               ["https://careers.amd.com/careers-home/jobs?q=process+engineer+master",
+                          "https://careers.amd.com/careers-home/jobs?q=process+engineer+phd"],
 }
 
 # ── 시트 컬럼 인덱스 (0-based) ───────────────────────────────
@@ -132,18 +139,17 @@ KOREAN_COMPANY_NAMES = {"삼성전자", "SK하이닉스", "Tokyo Electron"}
 
 SEARCH_QUERIES_KR = [
     "반도체 공정 석사",
-    "반도체 공정 박사 신입",
+    "반도체 공정 박사",
     "엔지니어 연구원 석사",
+    "엔지니어 연구원 박사",
 ]
 
 SEARCH_QUERIES_EN = [
-    "process engineer Master PhD",
-    "etch deposition lithography CMP metrology",
-    "semiconductor R&D entry level",
-    "field service engineer semiconductor",
-    "application engineer",
-    "field application engineer",
-    "product support engineer",
+    "process engineer master",
+    "process engineer phd",
+    "etch deposition CMP metrology master",
+    "etch deposition CMP metrology phd",
+    "application engineer semiconductor",
     "research engineer semiconductor",
 ]
 

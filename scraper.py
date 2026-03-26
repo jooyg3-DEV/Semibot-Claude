@@ -145,9 +145,12 @@ def scrape_portal_info(company_name, driver, local_links):
     kr_query = COMPANY_SEARCH_KR.get(company_name, company_name)  # 한국 포털용
     en_query = COMPANY_SEARCH_EN.get(company_name, company_name)  # 글로벌 포털용
 
-    # 사람인 (한국어 검색)
+    # 사람인 (한국어 검색, 석사/박사 분리)
     saramin_count = 0
-    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={kr_query}+석박사"):
+    for degree in ["석사", "박사"]:
+        q = urllib.parse.quote(f"{kr_query} {degree}")
+        if not load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={q}"):
+            continue
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
                 link = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
@@ -164,9 +167,12 @@ def scrape_portal_info(company_name, driver, local_links):
             pass
     print(f"      [사람인] {company_name}: {saramin_count}개")
 
-    # 잡코리아 (한국어 검색)
+    # 잡코리아 (한국어 검색, 석사/박사 분리)
     jobkorea_count = 0
-    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={kr_query}+석박사"):
+    for degree in ["석사", "박사"]:
+        q = urllib.parse.quote(f"{kr_query} {degree}")
+        if not load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={q}"):
+            continue
         try:
             for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
                 title_elem = job.find_element(By.CSS_SELECTOR, '.title')
@@ -447,10 +453,16 @@ def scrape_official_pages(company_name, driver, local_links):
     for url in urls:
         if not load_page(driver, url):
             continue
-        time.sleep(3)  # SPA 초기 렌더링 대기 (1.5 → 3초)
-        _scroll_to_load(driver)  # lazy load 트리거
+        time.sleep(3)  # SPA 초기 렌더링 대기
+        _scroll_to_load(driver)
 
-        # 검색창 유무 확인 (첫 번째 쿼리로 테스트)
+        if '?' in url:
+            # URL에 검색 파라미터 포함 (Workday/Eightfold) → 바로 수집
+            print(f"      [검색] {company_name}: URL 파라미터 ({url.split('?')[1][:50]})")
+            _collect_links_from_page(driver, company_name, local_links, job_list)
+            continue
+
+        # 검색창 방식 (파라미터 없는 URL)
         first_query = queries[0]
         searched = try_keyword_search(driver, first_query)
 
@@ -459,7 +471,6 @@ def scrape_official_pages(company_name, driver, local_links):
             _scroll_to_load(driver)
             _collect_links_from_page(driver, company_name, local_links, job_list)
 
-            # 나머지 쿼리도 순차 검색 (검색창이 있을 때만)
             for query in queries[1:]:
                 if load_page(driver, url) and try_keyword_search(driver, query):
                     print(f"      [검색] {company_name}: '{query}' 검색")
