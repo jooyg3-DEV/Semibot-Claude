@@ -1,4 +1,4 @@
-name: 0. Pipeline (수집→원문→분석→만료확인)
+name: 0. Pipeline (수집→원문→분석→만료확인→분배)
 
 on:
   schedule:
@@ -41,3 +41,8 @@ jobs:
         env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
         run: python checker.py
+
+      - name: 5. Distribute (회사별 탭 분배)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python distribute.py
