@@ -19,7 +19,7 @@ import config
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
-SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
+SHEET_URL = config.SHEET_URL
 MAX_WORKERS = 4  # 병렬로 처리할 회사 수
 
 TARGET_COMPANIES = [

@@ -12,10 +12,12 @@ from google import genai
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+import config
+
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
-SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
+SHEET_URL = config.SHEET_URL
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 BATCH_SIZE = None  # None = 전체 처리
 MAX_WORKERS = 1    # 순차 처리 (무료 플랜 15 RPM 한도)
