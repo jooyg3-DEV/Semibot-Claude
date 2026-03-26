@@ -2,7 +2,7 @@ name: 0. Pipeline (수집→원문→분석)
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # 매 2시간마다 실행
+    - cron: '0 9 * * *'  # 매일 오후 6시 KST (= 09:00 UTC)
   workflow_dispatch:
 
 jobs:

@@ -47,7 +47,7 @@ def process_single_job(task):
     row_num, row_data = task
     company = row_data[5]   # F열 (0-based)
     link    = row_data[12]  # M열 (0-based) — 13열 구조
-    print(f"  ▶ [{company}] 원문 수집 중... (행: {row_num})")
+    print(f"  ▶ [{company}] 원문 수집 중... (행: {row_num}) {link[:60]}")
 
     # Workday/Eightfold SPA는 JS 렌더링에 추가 시간 필요
     _SPA_DOMAINS = ('workdayjobs.com', 'careers.amd.com', 'careers.micron.com',
@@ -91,16 +91,20 @@ if __name__ == "__main__":
     all_rows = sheet_main.get_all_values()
     pending = []
     RETRY_STATUSES = {"페이지 접속 불가", "내용 없음", "오류"}
+    skipped_no_link = 0
     for i, row in enumerate(all_rows):
         if len(row) < 13:
             continue
         status = row[7]
         link = row[12]
-        # 링크가 URL 형식이 아니면 14열 구조 구버전 행 → 건너뜀
         if not link.startswith("http"):
+            skipped_no_link += 1
+            print(f"  [스킵] 행 {i+1} ({row[5] if len(row) > 5 else '?'}): 링크 비정상 ({link[:50]!r})")
             continue
         if status == "AI 대기" or status in RETRY_STATUSES:
             pending.append((i + 1, row))  # 1-based row number
+    if skipped_no_link:
+        print(f"  ※ 링크 비정상으로 스킵된 행: {skipped_no_link}개")
 
     if not pending:
         print("✨ 처리할 항목이 없습니다.")

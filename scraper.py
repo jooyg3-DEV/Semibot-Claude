@@ -469,9 +469,13 @@ def scrape_official_pages(company_name, driver, local_links):
         _scroll_to_load(driver)
 
         if '?' in url:
-            # URL에 검색 파라미터 포함 (Workday/Eightfold) → 바로 수집
+            # URL에 검색 파라미터 포함 (Workday/Eightfold) → 추가 대기 후 수집
+            time.sleep(3)  # SPA 검색 결과 렌더링 추가 대기
+            _scroll_to_load(driver)
+            before = len(job_list)
             print(f"      [검색] {company_name}: URL 파라미터 ({url.split('?')[1][:50]})")
             _collect_links_from_page(driver, company_name, local_links, job_list)
+            print(f"      [검색] {company_name}: +{len(job_list)-before}개 수집")
             continue
 
         # 검색창 방식 (파라미터 없는 URL)
