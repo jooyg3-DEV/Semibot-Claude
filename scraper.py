@@ -19,7 +19,7 @@ import config
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
-SHEET_URL = os.environ.get("SHEET_URL", "여기에_구글_스프레드시트_URL을_붙여넣으세요")
+SHEET_URL = config.SHEET_URL
 MAX_WORKERS = 4  # 병렬로 처리할 회사 수
 
 TARGET_COMPANIES = [
@@ -196,36 +196,79 @@ def scrape_portal_info(company_name, driver, local_links):
             pass
     print(f"      [잡코리아] {company_name}: {jobkorea_count}개")
 
-    # LinkedIn (쿠키 인증)
+    # LinkedIn (쿠키 인증 - 로그인 상태 셀렉터)
     linkedin_count = 0
     if not LINKEDIN_COOKIE:
         print(f"      [LinkedIn] LINKEDIN_COOKIE 미설정 - 건너뜀")
     else:
-        li_kw = urllib.parse.quote(f"{en_query} process engineer semiconductor")
-        li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD"
+        li_kw = urllib.parse.quote(f'"{en_query}" semiconductor engineer OR scientist OR researcher')
+        li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_kw}&sortBy=DD&f_TPR=r604800"
         try:
             driver.get("https://www.linkedin.com")
-            driver.add_cookie({"name": "li_at", "value": LINKEDIN_COOKIE, "domain": ".linkedin.com"})
+            time.sleep(1)
+            driver.add_cookie({"name": "li_at", "value": LINKEDIN_COOKIE, "domain": ".linkedin.com",
+                               "path": "/", "secure": True})
             driver.get(li_url)
-            time.sleep(2)
+            time.sleep(3)
             cur = driver.current_url
             if "login" in cur or "authwall" in cur or "signup" in cur:
                 print(f"      [LinkedIn] {company_name}: 쿠키 만료 - 건너뜀")
             else:
-                for job in driver.find_elements(By.CSS_SELECTOR, '.base-card, .job-search-card')[:10]:
+                # 로그인 상태 카드 셀렉터 (순서대로 fallback)
+                cards = []
+                for sel in ['.job-card-container', '.jobs-search__results-list > li',
+                            '.scaffold-layout__list-item',
+                            '.base-card', '.job-search-card']:  # 비로그인 fallback
+                    cards = driver.find_elements(By.CSS_SELECTOR, sel)
+                    if cards:
+                        break
+                for card in cards[:15]:
                     try:
-                        link_elem = job.find_element(By.CSS_SELECTOR, 'a[href*="linkedin.com/jobs"]')
-                        link = link_elem.get_attribute('href').split('?')[0]
-                        if link in local_links:
+                        title = ""
+                        for sel in ['.job-card-list__title--link',
+                                     '.job-card-container__link span[aria-hidden="true"]',
+                                     '.base-search-card__title', 'h3 a', 'h3']:
+                            try:
+                                title = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                                if title:
+                                    break
+                            except Exception:
+                                pass
+                        corp = ""
+                        for sel in ['.job-card-container__primary-description',
+                                     '.artdeco-entity-lockup__subtitle span',
+                                     '.base-search-card__subtitle', 'h4']:
+                            try:
+                                corp = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                                if corp:
+                                    break
+                            except Exception:
+                                pass
+                        link = ""
+                        for sel in ['a.job-card-container__link', 'a.job-card-list__title--link',
+                                     'a[href*="linkedin.com/jobs"]', 'a']:
+                            try:
+                                link = card.find_element(By.CSS_SELECTOR, sel).get_attribute('href') or ''
+                                if link:
+                                    break
+                            except Exception:
+                                pass
+                        location = ""
+                        for sel in ['.job-card-container__metadata-item',
+                                     '.job-search-card__location', 'li']:
+                            try:
+                                location = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                                if location:
+                                    break
+                            except Exception:
+                                pass
+                        base_link = link.split('?')[0]
+                        if not title or not link:
                             continue
-                        title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title, .job-search-card__title').text.strip()
-                        company_elem = job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle, .job-search-card__company-name')
-                        if not _match_company(company_elem.text, company_name):
+                        if base_link in {e.split('?')[0] for e in local_links}:
                             continue
-                        try:
-                            location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
-                        except Exception:
-                            location = ''
+                        if corp and not _match_company(corp, company_name):
+                            continue
                         if match_title(title) is None or is_china(title + ' ' + location):
                             continue
                         job_list.append(create_job_row("LinkedIn", company_name, title, link))

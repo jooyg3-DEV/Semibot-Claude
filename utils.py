@@ -37,19 +37,16 @@ def is_china(text: str) -> bool:
 
 
 def match_title(title: str):
-    """Returns '강', '약', or None."""
+    """Returns '강' or None. 공백 패딩으로 단어 경계 매칭( ai ,  it  등) 처리."""
     if not title:
         return None
-    t = title.lower()
+    t = " " + title.lower() + " "  # 앞뒤 공백으로 시작/끝 단어 경계 처리
     if any(kw in t for kw in config.EXCLUDE_EN) or \
        any(kw in title for kw in config.EXCLUDE_KR):
         return None
     if any(kw in t for kw in config.STRONG_EN) or \
        any(kw in title for kw in config.STRONG_KR):
         return "강"
-    if any(kw in t for kw in config.WEAK_EN) or \
-       any(kw in title for kw in config.WEAK_KR):
-        return "약"
     return None
 
 
