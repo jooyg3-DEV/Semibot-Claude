@@ -1,0 +1,25 @@
+name: 4. Checker (만료공고 확인)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  checker:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Write credentials
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: echo "$GCP_CREDENTIALS" > credentials.json
+
+      - name: 4. Checker (만료공고 확인)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python checker.py
