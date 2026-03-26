@@ -1,10 +1,12 @@
-name: 1. Job Scraper (수집봇)
+name: 0. Pipeline (수집→원문→분석)
 
 on:
+  schedule:
+    - cron: '0 */2 * * *'  # 매 2시간마다 실행
   workflow_dispatch:
 
 jobs:
-  scrape:
+  pipeline:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -14,10 +16,23 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - env:
+      - name: Write credentials
+        env:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: echo "$GCP_CREDENTIALS" > credentials.json
-      - env:
+
+      - name: 1. Scraper (공고 수집)
+        env:
           SHEET_URL: ${{ secrets.SHEET_URL }}
           LINKEDIN_COOKIE: ${{ secrets.LINKEDIN_COOKIE }}
         run: python scraper.py
+
+      - name: 2. Summarizer (원문 수집)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python summarizer.py
+
+      - name: 3. Analyzer (필드 분석)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python analyzer.py
