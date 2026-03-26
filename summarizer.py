@@ -85,8 +85,16 @@ if __name__ == "__main__":
     print("\n🤖 [원문수집봇] 'AI 대기' 항목 수집 시작...")
     all_rows = sheet_main.get_all_values()
     pending = []
+    RETRY_STATUSES = {"페이지 접속 불가", "내용 없음", "오류"}
     for i, row in enumerate(all_rows):
-        if len(row) >= 13 and row[7] == "AI 대기":
+        if len(row) < 13:
+            continue
+        status = row[7]
+        link = row[12]
+        # 링크가 URL 형식이 아니면 14열 구조 구버전 행 → 건너뜀
+        if not link.startswith("http"):
+            continue
+        if status == "AI 대기" or status in RETRY_STATUSES:
             pending.append((i + 1, row))  # 1-based row number
 
     if not pending:
