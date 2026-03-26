@@ -30,7 +30,7 @@ OFFICIAL_URLS = {
     "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
                           "https://jobs.appliedmaterials.com/"],
     "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "TSMC":              ["https://www.tsmc.com/english/careers/"],
+    "TSMC":              ["https://careers.tsmc.com/careers"],
     "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
     "Micron":            ["https://careers.micron.com/careers"],
     "Lam Research":      ["https://lamresearch-recruit.com/jobs",

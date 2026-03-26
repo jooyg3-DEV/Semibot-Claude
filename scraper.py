@@ -43,23 +43,7 @@ SEARCH_QUERIES_EN = config.SEARCH_QUERIES_EN
 
 LINKEDIN_COOKIE = os.environ.get("LINKEDIN_COOKIE", "")  # li_at 쿠키값
 
-OFFICIAL_URLS = {
-    "삼성전자":          ["https://www.samsungcareers.com/hr/"],
-    "SK하이닉스":        ["https://recruit.skhynix.com/"],           # SK그룹 통합 포털(skcareers.com) 아닌 전용 사이트
-    "ASML":              ["https://asmlkorea.careerlink.kr/jobs",
-                          "https://www.asml.com/en/careers/find-your-job"],
-    "Applied Materials": ["https://appliedkorea.applyin.co.kr/jobs/",
-                          "https://jobs.appliedmaterials.com/"],
-    "Lam Research":      ["https://lamresearch-recruit.com/jobs",
-                          "https://careers.lamresearch.com/careers"],  # 글로벌 채용 사이트 추가
-    "KLA":               ["https://kla.wd1.myworkdayjobs.com/Search"],
-    "Micron":            ["https://careers.micron.com/careers"],       # 루트 → 직무 목록 페이지로
-    "TSMC":              ["https://www.tsmc.com/english/careers/"],    # 구버전 static 페이지 → 현행 페이지로
-    "Intel":             ["https://intel.wd1.myworkdayjobs.com/External"],
-    "NVIDIA":            ["https://nvidia.eightfold.ai/careers"],
-    "AMD":               ["https://careers.amd.com/careers-home/jobs"],
-    "Tokyo Electron":    ["https://tel.recruiter.co.kr/career/career"],  # OFFICIAL_URLS 누락 추가
-}
+OFFICIAL_URLS = config.OFFICIAL_URLS  # config.py에서 단일 관리
 
 def make_driver():
     """각 스레드마다 독립적인 드라이버 생성 (이미지 차단으로 속도 향상)"""
@@ -114,10 +98,14 @@ def try_keyword_search(driver, keyword):
         'input[placeholder*="Job" i]',
         'input[placeholder*="검색" i]',
         'input[placeholder*="직무" i]',
+        'input[placeholder*="공고" i]',
+        'input[placeholder*="채용" i]',
         'input[placeholder*="keyword" i]',
+        'input[placeholder*="title" i]',
         'input[name*="search" i]',
         'input[id*="search" i]',
         'input[class*="search" i]',
+        'input[type="text"]',  # 광범위 fallback (마지막 시도)
     ]
     for sel in selectors:
         try:
@@ -400,20 +388,43 @@ def scrape_google_jobs(company_name, driver, local_links):
 
 def _collect_links_from_page(driver, company_name, local_links, job_list):
     """현재 드라이버 페이지에서 공고 링크를 모두 추출해 job_list에 추가."""
-    valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail', 'posting', 'recruit']
+    valid_url_kw = ['/job', '/req', 'jobid=', '/career', '/position', 'detail',
+                    'posting', 'recruit', '/apply', 'openings', 'requisition', '/role']
+    url_matched = 0
     for elem in driver.find_elements(By.TAG_NAME, 'a'):
         try:
             link = elem.get_attribute('href')
-            title = elem.text.strip()
-            if not link or len(title) < 5 or link in local_links:
+            if not link or link in local_links:
                 continue
-            if any(kw in link.lower() for kw in valid_url_kw):
-                if match_title(title) is None or is_china(title + ' ' + link):
-                    continue
-                job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
-                local_links.add(link)
+            if not any(kw in link.lower() for kw in valid_url_kw):
+                continue
+            url_matched += 1
+            title = elem.text.strip()
+            # SPA/한국 사이트: <a> 텍스트가 "자세히 보기" 같은 버튼 텍스트인 경우
+            # → 가장 가까운 카드/목록 항목에서 제목 추출
+            if len(title) < 5:
+                try:
+                    title = driver.execute_script("""
+                        var el = arguments[0];
+                        var card = el.closest('li, tr, article, [class*=card], [class*=item], [class*=posting]');
+                        if (!card) card = el.parentElement && el.parentElement.parentElement;
+                        if (!card) return '';
+                        var h = card.querySelector('h1,h2,h3,h4,strong,[class*=title],[class*=name]');
+                        return h ? h.innerText.trim() : card.innerText.split('\\n')[0].trim();
+                    """, elem) or ''
+                    title = title[:120]
+                except Exception:
+                    pass
+            if len(title) < 5:
+                continue
+            if match_title(title) is None or is_china(title + ' ' + link):
+                continue
+            job_list.append(create_job_row("공식 홈페이지", company_name, title, link))
+            local_links.add(link)
         except Exception:
             continue
+    if url_matched == 0:
+        print(f"      [공식] {company_name}: URL 패턴 매칭 링크 0개 (JS 네비게이션 또는 다른 URL 구조)")
 
 
 def _scroll_to_load(driver):
