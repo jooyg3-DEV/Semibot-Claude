@@ -19,8 +19,9 @@ import config
 # ==========================================
 # ⚙️ [설정]
 # ==========================================
-SHEET_URL = config.SHEET_URL
-MAX_WORKERS = 4  # 병렬로 처리할 회사 수
+SHEET_URL        = config.SHEET_URL
+LINKEDIN_COOKIE  = os.environ.get("LINKEDIN_COOKIE", "")
+MAX_WORKERS      = 4  # 병렬로 처리할 회사 수
 
 TARGET_COMPANIES = [
     "삼성전자", "SK하이닉스", "ASML", "Applied Materials",
@@ -84,6 +85,31 @@ def is_target_company(actual, target):
     return target.lower().replace(" ", "") in actual.lower().replace(" ", "")
 
 
+def _get_company_cfg(company_name):
+    return next((c for c in config.COMPANIES if c["name"] == company_name), {})
+
+
+def _set_linkedin_cookie(driver):
+    """li_at 쿠키로 LinkedIn 로그인 상태 설정. 성공 여부 반환."""
+    if not LINKEDIN_COOKIE:
+        print("    [LinkedIn] LINKEDIN_COOKIE 미설정 → 건너뜀")
+        return False
+    try:
+        driver.get("https://www.linkedin.com")
+        time.sleep(1)
+        driver.add_cookie({
+            "name": "li_at",
+            "value": LINKEDIN_COOKIE,
+            "domain": ".linkedin.com",
+            "path": "/",
+            "secure": True,
+        })
+        return True
+    except Exception as e:
+        print(f"    [LinkedIn] 쿠키 설정 실패: {e}")
+        return False
+
+
 def create_job_row(source, company, title, link):
     today = datetime.today().strftime('%Y-%m-%d')
     rank = COMPANY_RANK.get(company, 99)
@@ -132,70 +158,137 @@ def load_page(driver, url):
 
 def scrape_portal_info(company_name, driver, local_links):
     job_list = []
+    cfg        = _get_company_cfg(company_name)
+    search_kr  = cfg.get("search_kr", company_name)
+    search_en  = cfg.get("search_en", company_name)
 
-    # 사람인
-    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={company_name}+석박사"):
+    # ── 사람인 (한국어 검색어) ──────────────────────────────────
+    saramin_q = urllib.parse.quote(f"{search_kr} 석박사")
+    if load_page(driver, f"https://www.saramin.co.kr/zf_user/search/recruit?searchword={saramin_q}"):
         try:
-            for job in driver.find_elements(By.CSS_SELECTOR, '.item_recruit')[:5]:
-                link = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
-                if link in local_links:
-                    continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.corp_name').text, company_name):
+            cards = driver.find_elements(By.CSS_SELECTOR, '.item_recruit')
+            print(f"    [사람인] {company_name}({search_kr}): 카드 {len(cards)}개")
+            for job in cards[:10]:
+                try:
+                    link  = job.find_element(By.CSS_SELECTOR, '.job_tit a').get_attribute('href')
                     title = job.find_element(By.CSS_SELECTOR, '.job_tit a').text.strip()
+                    corp  = job.find_element(By.CSS_SELECTOR, '.corp_name').text
+                    if link in local_links or not is_target_company(corp, search_kr):
+                        continue
                     if match_title(title) is None or is_china(title):
                         continue
                     job_list.append(create_job_row("사람인", company_name, title, link))
                     local_links.add(link)
-        except Exception:
-            pass
-
-    # 잡코리아
-    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={company_name}+석박사"):
-        try:
-            for job in driver.find_elements(By.CSS_SELECTOR, '.list-default .post')[:5]:
-                title_elem = job.find_element(By.CSS_SELECTOR, '.title')
-                link = title_elem.get_attribute('href')
-                if link in local_links:
+                except Exception:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.name').text, company_name):
+        except Exception as e:
+            print(f"    [사람인] {company_name} 파싱 오류: {e}")
+
+    # ── 잡코리아 (한국어 검색어) ───────────────────────────────
+    jobkorea_q = urllib.parse.quote(f"{search_kr} 석박사")
+    if load_page(driver, f"https://www.jobkorea.co.kr/Search/?stext={jobkorea_q}"):
+        try:
+            cards = driver.find_elements(By.CSS_SELECTOR, '.list-default .post')
+            print(f"    [잡코리아] {company_name}({search_kr}): 카드 {len(cards)}개")
+            for job in cards[:10]:
+                try:
+                    title_elem = job.find_element(By.CSS_SELECTOR, '.title')
+                    link  = title_elem.get_attribute('href')
                     title = title_elem.text.strip()
+                    corp  = job.find_element(By.CSS_SELECTOR, '.name').text
+                    if link in local_links or not is_target_company(corp, search_kr):
+                        continue
                     if match_title(title) is None or is_china(title):
                         continue
                     job_list.append(create_job_row("잡코리아", company_name, title, link))
                     local_links.add(link)
-        except Exception:
-            pass
-
-    # LinkedIn
-    if load_page(driver, f"https://www.linkedin.com/jobs/search/?keywords={company_name}%20Master%20OR%20Ph.D"):
-        try:
-            time.sleep(1)
-            for job in driver.find_elements(By.CSS_SELECTOR, '.base-card')[:5]:
-                link = job.find_element(By.CSS_SELECTOR, 'a.base-card__full-link').get_attribute('href')
-                if link.split('?')[0] in {e.split('?')[0] for e in local_links}:
+                except Exception:
                     continue
-                if is_target_company(job.find_element(By.CSS_SELECTOR, '.base-search-card__subtitle').text, company_name):
-                    title = job.find_element(By.CSS_SELECTOR, '.base-search-card__title').text.strip()
-                    try:
-                        location = job.find_element(By.CSS_SELECTOR, '.job-search-card__location').text
-                    except Exception:
-                        location = ''
+        except Exception as e:
+            print(f"    [잡코리아] {company_name} 파싱 오류: {e}")
+
+    # ── LinkedIn (cookie 인증 + 영어 검색어) ───────────────────
+    if _set_linkedin_cookie(driver):
+        li_q = urllib.parse.quote(f'"{search_en}" semiconductor engineer OR scientist OR researcher')
+        li_url = f"https://www.linkedin.com/jobs/search/?keywords={li_q}&sortBy=DD&f_TPR=r604800"
+        if load_page(driver, li_url):
+            time.sleep(3)
+            # 로그인 상태 카드 셀렉터 (순서대로 시도)
+            cards = []
+            for sel in ['.job-card-container', '.jobs-search__results-list > li',
+                        '.scaffold-layout__list-item']:
+                cards = driver.find_elements(By.CSS_SELECTOR, sel)
+                if cards:
+                    break
+            print(f"    [LinkedIn] {company_name}({search_en}): 카드 {len(cards)}개")
+            for card in cards[:15]:
+                try:
+                    title = ""
+                    for sel in ['.job-card-list__title--link',
+                                 '.job-card-container__link span[aria-hidden="true"]',
+                                 'h3 a', 'h3']:
+                        try:
+                            title = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                            if title:
+                                break
+                        except Exception:
+                            pass
+                    corp = ""
+                    for sel in ['.job-card-container__primary-description',
+                                 '.artdeco-entity-lockup__subtitle span', 'h4']:
+                        try:
+                            corp = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                            if corp:
+                                break
+                        except Exception:
+                            pass
+                    link = ""
+                    for sel in ['a.job-card-container__link',
+                                 'a.job-card-list__title--link', 'a']:
+                        try:
+                            link = card.find_element(By.CSS_SELECTOR, sel).get_attribute('href') or ''
+                            if link:
+                                break
+                        except Exception:
+                            pass
+                    location = ""
+                    for sel in ['.job-card-container__metadata-item',
+                                 '.artdeco-entity-lockup__caption', 'li']:
+                        try:
+                            location = card.find_element(By.CSS_SELECTOR, sel).text.strip()
+                            if location:
+                                break
+                        except Exception:
+                            pass
+                    base_link = link.split('?')[0]
+                    if not title or not link:
+                        continue
+                    if base_link in {e.split('?')[0] for e in local_links}:
+                        continue
+                    if corp and not is_target_company(corp, search_en):
+                        continue
                     if match_title(title) is None or is_china(title + ' ' + location):
                         continue
                     job_list.append(create_job_row("LinkedIn", company_name, title, link))
                     local_links.add(link)
-        except Exception:
-            pass
+                except Exception:
+                    continue
 
-    # 잡다
-    if load_page(driver, f"https://www.jobda.im/position?keyword={company_name}"):
+    # ── 잡다 (한국어 검색어) ───────────────────────────────────
+    jobda_q = urllib.parse.quote(search_kr)
+    if load_page(driver, f"https://www.jobda.im/position?keyword={jobda_q}"):
         try:
-            time.sleep(1)
-            for item in driver.find_elements(By.CSS_SELECTOR, 'li')[:10]:
+            time.sleep(2)
+            cards = driver.find_elements(By.CSS_SELECTOR,
+                        'li.position-item, li[class*="position"], li[class*="card"]')
+            if not cards:
+                cards = driver.find_elements(By.CSS_SELECTOR, 'li')
+            print(f"    [잡다] {company_name}({search_kr}): 카드 {len(cards)}개")
+            for item in cards[:15]:
                 try:
                     a = item.find_element(By.CSS_SELECTOR, 'a')
                     link = a.get_attribute('href') or ''
-                    if not link.startswith('http'):
+                    if link and not link.startswith('http'):
                         link = 'https://www.jobda.im' + link
                     title = ''
                     for sel in ['.position-name', '.title', 'h3', 'h4', 'strong']:
@@ -204,35 +297,39 @@ def scrape_portal_info(company_name, driver, local_links):
                             if title:
                                 break
                         except Exception:
-                            continue
+                            pass
                     if not title or len(title) < 3 or link in local_links:
                         continue
                     if match_title(title) is None or is_china(title):
                         continue
-                    if is_target_company(item.text, company_name):
+                    if is_target_company(item.text, search_kr) or is_target_company(item.text, search_en):
                         job_list.append(create_job_row("잡다", company_name, title, link))
                         local_links.add(link)
                 except Exception:
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"    [잡다] {company_name} 파싱 오류: {e}")
 
-    # Indeed (해외 직무)
-    indeed_q = urllib.parse.quote(f"{company_name} process engineer semiconductor phd")
+    # ── Indeed (영어 검색어, 해외 직무) ───────────────────────
+    indeed_q = urllib.parse.quote(f'"{search_en}" semiconductor engineer OR scientist')
     if load_page(driver, f"https://www.indeed.com/jobs?q={indeed_q}&sort=date"):
         try:
             time.sleep(2)
-            for job in driver.find_elements(By.CSS_SELECTOR, '.job_seen_beacon')[:5]:
+            cards = driver.find_elements(By.CSS_SELECTOR, '.job_seen_beacon')
+            print(f"    [Indeed] {company_name}({search_en}): 카드 {len(cards)}개")
+            for job in cards[:10]:
                 try:
-                    title_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="jobTitle"] a, h2.jobTitle a')
-                    link = title_elem.get_attribute('href') or ''
-                    if not link.startswith('http'):
+                    title_elem = job.find_element(
+                        By.CSS_SELECTOR, '[data-testid="jobTitle"] a, h2.jobTitle a')
+                    link  = title_elem.get_attribute('href') or ''
+                    if link and not link.startswith('http'):
                         link = 'https://www.indeed.com' + link
                     title = title_elem.text.strip()
-                    company_elem = job.find_element(By.CSS_SELECTOR, '[data-testid="company-name"], .companyName')
+                    corp  = job.find_element(
+                        By.CSS_SELECTOR, '[data-testid="company-name"], .companyName').text
                     if link in local_links or not title or len(title) < 5:
                         continue
-                    if not is_target_company(company_elem.text, company_name):
+                    if not is_target_company(corp, search_en):
                         continue
                     if match_title(title) is None or is_china(title):
                         continue
@@ -240,8 +337,8 @@ def scrape_portal_info(company_name, driver, local_links):
                     local_links.add(link)
                 except Exception:
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"    [Indeed] {company_name} 파싱 오류: {e}")
 
     return job_list
 
