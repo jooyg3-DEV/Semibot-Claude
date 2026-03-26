@@ -1,0 +1,43 @@
+name: 0. Pipeline (수집→원문→분석→만료확인)
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # 매일 오후 6시 KST (= 09:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Write credentials
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: echo "$GCP_CREDENTIALS" > credentials.json
+
+      - name: 1. Scraper (공고 수집)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+          LINKEDIN_COOKIE: ${{ secrets.LINKEDIN_COOKIE }}
+        run: python scraper.py
+
+      - name: 2. Summarizer (원문 수집)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python summarizer.py
+
+      - name: 3. Analyzer (필드 분석)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python analyzer.py
+
+      - name: 4. Checker (만료공고 확인)
+        env:
+          SHEET_URL: ${{ secrets.SHEET_URL }}
+        run: python checker.py

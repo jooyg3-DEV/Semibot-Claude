@@ -112,10 +112,6 @@ def is_expired(driver, link: str) -> tuple[bool, str]:
             if kw.lower() in body_text:
                 return True, f"만료 키워드 감지: '{kw}'"
 
-        # 페이지 내용이 너무 짧으면 의심 (로딩 실패 또는 빈 페이지)
-        if len(body_text.strip()) < 100:
-            return True, "페이지 내용 없음 (100자 미만)"
-
         return False, ""
 
     except Exception as e:
