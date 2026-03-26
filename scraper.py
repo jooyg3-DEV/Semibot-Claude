@@ -75,7 +75,7 @@ def connect_google_sheet():
     creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     sheet = gspread.authorize(creds).open_by_url(SHEET_URL).worksheet("채용공고")
     try:
-        existing_links = set(sheet.col_values(14))  # N열(14)이 링크
+        existing_links = set(sheet.col_values(13))  # M열(13)이 링크
     except Exception:
         existing_links = set()
     return sheet, existing_links
@@ -114,9 +114,9 @@ def create_job_row(source, company, title, link):
     today = datetime.today().strftime('%Y-%m-%d')
     rank = COMPANY_RANK.get(company, 99)
     # A:검색일, B:순위, C:출처, D:마감일, E:상시, F:회사, G:공고명
-    # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:직무설명, M:박사우대, N:링크
+    # H:지원자격, I:채용직무, J:근무지, K:채용형태, L:박사우대, M:링크  (13열)
     return [today, rank, source, today, "상시", company, title,
-            "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
+            "AI 대기", "AI 대기", "AI 대기", "AI 대기", "AI 대기", link]
 
 
 def try_keyword_search(driver, keyword):
@@ -472,7 +472,7 @@ if __name__ == "__main__":
                 new_count = 0
                 with dedup_lock:
                     for job in jobs:
-                        link = job[13]  # N열 링크
+                        link = job[12]  # M열 링크
                         if link not in seen_links:
                             seen_links.add(link)
                             all_results.append(job)
