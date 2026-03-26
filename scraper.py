@@ -348,7 +348,7 @@ def sort_sheet(sheet):
     data.sort(key=sort_key)
     result = ([header] if header else []) + data
     sheet.clear()
-    sheet.update(result, 'A1')
+    sheet.update(result, 'A1', value_input_option='USER_ENTERED')
     print(f"  ✓ 시트 정렬 완료 ({len(data)}개 행)")
 
 
